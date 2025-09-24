@@ -127,7 +127,8 @@ function RegisterContent() {
               onChange={handleInputChange}
               required
               pattern="[a-zA-Z0-9_]{3,20}"
-              title="Username can only contain letters, numbers, underscores, and hyphens"
+              title="Username can only contain letters, numbers, and underscores"
+              autoComplete="username"
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
               placeholder="Choose a username"
             />
