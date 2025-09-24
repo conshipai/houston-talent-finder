@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  username        String    @unique
+  password        String
+  emailVerified   DateTime?
+  ageVerified     Boolean   @default(false)
+  ageVerifiedAt   DateTime?
+  role            Role      @default(TALENT)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  profile         Profile?
+  media           Media[]
+  sessions        Session[]
+}
+
+model Profile {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Basic Info
+  stageName       String?
+  bio             String?
+  age             Int?
+  city            String    @default("Houston")
+  state           String    @default("Texas")
+  
+  // Physical Attributes
+  height          String?
+  weight          String?
+  measurements    String?
+  hairColor       String?
+  eyeColor        String?
+  ethnicity       String?
+  
+  // Professional Info
+  experience      String[]
+  willingToTravel Boolean   @default(false)
+  availability    String?
+  
+  // Talent Categories
+  categories      String[]  // ["modeling", "acting", "dancing", etc.]
+  specialties     String[]  // Specific skills or interests
+  
+  // Contact & Social
+  phone           String?
+  instagram       String?
+  twitter         String?
+  website         String?
+  
+  // Status
+  verified        Boolean   @default(false)
+  featured        Boolean   @default(false)
+  active          Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Media {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  filename        String
+  url             String
+  thumbnailUrl    String?
+  type            MediaType @default(PHOTO)
+  size            Int
+  mimeType        String
+  
+  title           String?
+  description     String?
+  
+  isProfilePhoto  Boolean   @default(false)
+  isPublic        Boolean   @default(true)
+  isApproved      Boolean   @default(false)
+  
+  views           Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  TALENT
+  PRODUCER
+  ADMIN
+}
+
+enum MediaType {
+  PHOTO
+  VIDEO
+}
