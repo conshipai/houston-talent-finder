@@ -1,13 +1,23 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import React, { useState, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginContent />
+    </Suspense>
+  )
+}
+
+function LoginContent() {
+  // Moved all hook usage into this child component
   const router = useRouter()
   const searchParams = useSearchParams()
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -103,12 +113,12 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="p-4 bg-red-900/50 border border-red-600 rounded-lg">
-              <p className="text-red-200 text-sm">{error}</p>
-            </div>
-          )}
+        {/* Error Message */}
+        {error && (
+          <div className="p-4 bg-red-900/50 border border-red-600 rounded-lg">
+            <p className="text-red-200 text-sm">{error}</p>
+          </div>
+        )}
 
           <button
             type="submit"
