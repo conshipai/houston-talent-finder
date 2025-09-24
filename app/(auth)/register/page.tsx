@@ -110,7 +110,7 @@ function RegisterContent() {
               name="email"
               value={formData.email}
               onChange={handleInputChange}
-              required
+              autoComplete="new-password"
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
               placeholder="your@email.com"
             />
@@ -126,7 +126,7 @@ function RegisterContent() {
               value={formData.username}
               onChange={handleInputChange}
               required
-              pattern="[a-zA-Z0-9_-]+"
+              pattern="[a-zA-Z0-9_-]{3,20}"
               title="Username can only contain letters, numbers, underscores, and hyphens"
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
               placeholder="Choose a username"
@@ -147,6 +147,7 @@ function RegisterContent() {
               onChange={handleInputChange}
               required
               minLength={6}
+              autoComplete="new-password"
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
               placeholder="Create a password"
             />
@@ -162,6 +163,7 @@ function RegisterContent() {
               value={formData.confirmPassword}
               onChange={handleInputChange}
               required
+              autoComplete="new-password"
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
               placeholder="Confirm your password"
             />
