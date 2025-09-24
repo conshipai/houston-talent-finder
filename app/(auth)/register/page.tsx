@@ -1,30 +1,29 @@
 'use client'
 
 import React, { useState, Suspense } from 'react'
-import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-export default function LoginPage() {
+export default function RegisterPage() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <LoginContent />
+      <RegisterContent />
     </Suspense>
   )
 }
 
-function LoginContent() {
+function RegisterContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   const [formData, setFormData] = useState({
     email: '',
+    username: '',
     password: '',
+    confirmPassword: '',
+    birthDate: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  const registered = searchParams.get('registered') === 'true'
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -37,26 +36,55 @@ function LoginContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    
+    // Validate passwords match
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+    
+    // Validate password length
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+    
     setLoading(true)
 
     try {
-      const result = await signIn('credentials', {
-        email: formData.email,
-        password: formData.password,
-        redirect: false,
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          username: formData.username,
+          password: formData.password,
+          birthDate: formData.birthDate,
+        }),
       })
 
-      if (result?.error) {
-        setError(result.error)
+      const data = await response.json()
+
+      if (response.ok) {
+        // Registration successful, redirect to login
+        router.push('/login?registered=true')
       } else {
-        router.push('/dashboard')
+        setError(data.message || 'Registration failed')
       }
     } catch (err) {
+      console.error('Registration error:', err)
       setError('An error occurred. Please try again.')
     } finally {
       setLoading(false)
     }
   }
+
+  // Calculate max date for 18 years ago
+  const maxDate = new Date()
+  maxDate.setFullYear(maxDate.getFullYear() - 18)
+  const maxDateStr = maxDate.toISOString().split('T')[0]
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center px-4">
@@ -64,23 +92,14 @@ function LoginContent() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">
-            Welcome Back
+            Create Your Account
           </h1>
           <p className="text-gray-400">
-            Sign in to Houston Talent Finder
+            Join Houston Talent Finder Today
           </p>
         </div>
 
-        {/* Success Message */}
-        {registered && (
-          <div className="mb-6 p-4 bg-green-900/50 border border-green-600 rounded-lg">
-            <p className="text-green-200 text-sm">
-              Registration successful! Please sign in with your credentials.
-            </p>
-          </div>
-        )}
-
-        {/* Login Form */}
+        {/* Registration Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -99,6 +118,26 @@ function LoginContent() {
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleInputChange}
+              required
+              pattern="[a-zA-Z0-9_-]+"
+              title="Username can only contain letters, numbers, underscores, and hyphens"
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
+              placeholder="Choose a username"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              This will be part of your profile URL
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Password
             </label>
             <input
@@ -107,9 +146,43 @@ function LoginContent() {
               value={formData.password}
               onChange={handleInputChange}
               required
+              minLength={6}
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
-              placeholder="Enter your password"
+              placeholder="Create a password"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleInputChange}
+              required
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
+              placeholder="Confirm your password"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Date of Birth
+            </label>
+            <input
+              type="date"
+              name="birthDate"
+              value={formData.birthDate}
+              onChange={handleInputChange}
+              required
+              max={maxDateStr}
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              You must be 18 or older to register
+            </p>
           </div>
 
           {/* Error Message */}
@@ -124,21 +197,16 @@ function LoginContent() {
             disabled={loading}
             className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition duration-200"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Creating Account...' : 'Create Account'}
           </button>
         </form>
 
         {/* Links */}
-        <div className="mt-6 text-center space-y-2">
+        <div className="mt-6 text-center">
           <p className="text-sm text-gray-400">
-            Don't have an account?{' '}
-            <Link href="/register" className="text-red-500 hover:text-red-400">
-              Create Account
-            </Link>
-          </p>
-          <p className="text-sm text-gray-400">
-            <Link href="/forgot-password" className="text-red-500 hover:text-red-400">
-              Forgot Password?
+            Already have an account?{' '}
+            <Link href="/login" className="text-red-500 hover:text-red-400">
+              Sign In
             </Link>
           </p>
         </div>
@@ -146,7 +214,7 @@ function LoginContent() {
         {/* Legal Notice */}
         <div className="mt-8 pt-6 border-t border-gray-700">
           <p className="text-xs text-gray-500 text-center">
-            By signing in, you confirm that you are 18 years or older and agree to our{' '}
+            By creating an account, you confirm that you are 18 years or older and agree to our{' '}
             <Link href="/terms" className="text-red-500 hover:text-red-400">
               Terms of Service
             </Link>{' '}
