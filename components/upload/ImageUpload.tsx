@@ -1,7 +1,21 @@
 'use client'
 import React, { useState, useCallback } from 'react'
 import { Upload, X, Image, CheckCircle, AlertCircle } from 'lucide-react'
+// Add these type definitions
+type UploadProgress = {
+  [key: string]: {
+    name: string
+    progress: number
+  }
+}
 
+type UploadedImage = {
+  id: string
+  url: string
+  thumbnailUrl: string
+  name: string
+  size: number
+}
 export default function ImageUploadComponent() {
   const [uploading, setUploading] = useState(false)
   const [uploadedImages, setUploadedImages] = useState([])
