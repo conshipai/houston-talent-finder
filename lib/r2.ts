@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import sharp from "sharp"
 import { v4 as uuidv4 } from "uuid"
@@ -14,15 +14,15 @@ const r2Client = new S3Client({
 })
 
 export interface UploadResult {
-  url: string
-  thumbnailUrl: string
   filename: string
+  thumbnailFilename: string
   size: number
   mimeType: string
 }
 
 /**
  * Upload image to R2 with automatic thumbnail generation
+ * Returns filenames only (not URLs) since we're using private access
  */
 export async function uploadImage(
   file: Buffer,
@@ -71,21 +71,63 @@ export async function uploadImage(
     })
     await r2Client.send(thumbnailCommand)
 
-    // Construct public URLs
-    const baseUrl = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`
-    const url = `${baseUrl}/${filename}`
-    const thumbnailUrl = `${baseUrl}/${thumbnailFilename}`
-
     return {
-      url,
-      thumbnailUrl,
       filename,
+      thumbnailFilename,
       size: processedImage.length,
       mimeType: 'image/jpeg',
     }
   } catch (error) {
     console.error('Error uploading to R2:', error)
     throw new Error('Failed to upload image')
+  }
+}
+
+/**
+ * Generate a presigned URL for secure image access
+ * URLs are temporary and expire after specified time
+ */
+export async function getSignedImageUrl(
+  filename: string,
+  expiresIn: number = 3600 // 1 hour default
+): Promise<string> {
+  try {
+    const command = new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Key: filename,
+    })
+
+    const url = await getSignedUrl(r2Client, command, { expiresIn })
+    return url
+  } catch (error) {
+    console.error('Error generating signed URL:', error)
+    throw new Error('Failed to generate image URL')
+  }
+}
+
+/**
+ * Get image as buffer (for serving through API)
+ */
+export async function getImage(filename: string): Promise<Buffer> {
+  try {
+    const command = new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Key: filename,
+    })
+
+    const response = await r2Client.send(command)
+    const chunks: Uint8Array[] = []
+    
+    if (response.Body) {
+      for await (const chunk of response.Body as any) {
+        chunks.push(chunk)
+      }
+    }
+    
+    return Buffer.concat(chunks)
+  } catch (error) {
+    console.error('Error fetching image from R2:', error)
+    throw new Error('Failed to fetch image')
   }
 }
 
