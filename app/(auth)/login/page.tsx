@@ -14,7 +14,6 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
-  // Moved all hook usage into this child component
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -37,6 +36,7 @@ function LoginContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('Form submitted with:', formData)
     setError('')
     setLoading(true)
 
@@ -46,6 +46,8 @@ function LoginContent() {
         password: formData.password,
         redirect: false,
       })
+      
+      console.log('SignIn result:', result)
 
       if (result?.error) {
         setError(result.error)
@@ -53,6 +55,7 @@ function LoginContent() {
         router.push('/dashboard')
       }
     } catch (err) {
+      console.error('SignIn error:', err)
       setError('An error occurred. Please try again.')
     } finally {
       setLoading(false)
@@ -93,6 +96,7 @@ function LoginContent() {
               value={formData.email}
               onChange={handleInputChange}
               required
+              autoComplete="username email"
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
               placeholder="your@email.com"
             />
@@ -114,12 +118,12 @@ function LoginContent() {
             />
           </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="p-4 bg-red-900/50 border border-red-600 rounded-lg">
-            <p className="text-red-200 text-sm">{error}</p>
-          </div>
-        )}
+          {/* Error Message */}
+          {error && (
+            <div className="p-4 bg-red-900/50 border border-red-600 rounded-lg">
+              <p className="text-red-200 text-sm">{error}</p>
+            </div>
+          )}
 
           <button
             type="submit"
