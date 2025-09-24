@@ -213,15 +213,15 @@ export default function ImageUploadComponent() {
         )}
 
         {/* Upload Progress */}
-        {Object.keys(uploadProgress).length > 0 && (
-          <div className="mt-6 space-y-3">
-            <h3 className="text-white font-medium">Uploading...</h3>
-            {Object.entries(uploadProgress).map(([id, file]) => (
-              <div key={id} className="bg-gray-700 rounded-lg p-3">
-                <div className="flex justify-between mb-2">
-                  <span className="text-white text-sm">{file.name}</span>
-                  <span className="text-gray-400 text-sm">{file.progress}%</span>
-                </div>
+      {Object.keys(uploadProgress).length > 0 && (
+  <div className="mt-6 space-y-3">
+    <h3 className="text-white font-medium">Uploading...</h3>
+    {Object.entries(uploadProgress).map(([id, file]: [string, {name: string, progress: number}]) => (
+      <div key={id} className="bg-gray-700 rounded-lg p-3">
+        <div className="flex justify-between mb-2">
+          <span className="text-white text-sm">{file.name}</span>
+          <span className="text-gray-400 text-sm">{file.progress}%</span>
+        </div>
                 <div className="w-full bg-gray-600 rounded-full h-2">
                   <div 
                     className="bg-red-600 h-2 rounded-full transition-all duration-300"
