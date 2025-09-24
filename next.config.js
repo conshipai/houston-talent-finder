@@ -4,13 +4,6 @@ const nextConfig = {
   images: {
     domains: [
       'localhost',
-      'pub-*.r2.dev', // Cloudflare R2 domains
-    ],
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**.r2.dev',
-      },
     ],
   },
   experimental: {
