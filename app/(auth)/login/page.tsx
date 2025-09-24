@@ -36,7 +36,7 @@ function LoginContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Form submitted with:', formData)
+    console.log('Form submitted with email:', formData.email)
     setError('')
     setLoading(true)
 
@@ -50,9 +50,15 @@ function LoginContent() {
       console.log('SignIn result:', result)
 
       if (result?.error) {
+        console.error('Login error:', result.error)
         setError(result.error)
+      } else if (result?.ok) {
+        console.log('Login successful, redirecting to dashboard...')
+        // Try window.location for redirect as a fallback
+        window.location.href = '/dashboard'
       } else {
-        router.push('/dashboard')
+        console.error('Unexpected result:', result)
+        setError('Login failed. Please try again.')
       }
     } catch (err) {
       console.error('SignIn error:', err)
