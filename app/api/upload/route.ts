@@ -49,7 +49,9 @@ export async function POST(request: NextRequest) {
       file.type,
       session.user.id
     )
-
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const imageUrl = `${baseUrl}/api/images/${encodeURIComponent(uploadResult.filename)}`
+    const thumbnailUrl = `${baseUrl}/api/images/${encodeURIComponent(uploadResult.thumbnailFilename)}`
     // If this is a profile photo, unset any existing profile photos
     if (isProfilePhoto) {
       await prisma.media.updateMany({
@@ -68,8 +70,8 @@ export async function POST(request: NextRequest) {
       data: {
         userId: session.user.id,
         filename: uploadResult.filename,
-        url: uploadResult.url,
-        thumbnailUrl: uploadResult.thumbnailUrl,
+        url: imageUrl,
+        thumbnailUrl: thumbnailUrl,
         type: 'PHOTO',
         size: uploadResult.size,
         mimeType: uploadResult.mimeType,
