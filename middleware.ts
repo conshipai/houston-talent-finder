@@ -15,5 +15,7 @@ export const config = {
     "/settings/:path*",
     "/api/upload/:path*",
     "/api/profile/:path*",
+     "/messages/:path*",
+    "/api/messages/:path*",
   ],
 }
