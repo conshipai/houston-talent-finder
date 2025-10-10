@@ -4,88 +4,113 @@ import { authOptions } from '@/lib/auth'
 import { getSignedImageUrl, getImage } from '@/lib/r2'
 import { prisma } from '@/lib/db'
 
-// Serve images through signed URLs (recommended for performance)
 export async function GET(
   request: NextRequest,
   { params }: { params: { filename: string } }
 ) {
   try {
     const filename = decodeURIComponent(params.filename)
+    console.log('Image API: Requesting filename:', filename) // Debug log
     
-    // Method 1: Public images (no auth required for approved public images)
-    // Check if this is a public, approved image
+    // Get session to check if user is authenticated
+    const session = await getServerSession(authOptions)
+    
+    // For private buckets, we MUST have authentication
+    if (!session?.user?.id) {
+      console.log('Image API: No authenticated user')
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
+    // Try to find the media record
     const media = await prisma.media.findFirst({
       where: {
         OR: [
           { filename },
-          { thumbnailUrl: { contains: filename } },
+          { filename: { contains: filename } },
         ],
       },
       include: {
         user: true,
       }
     })
-
-    // Get session to check if user is authenticated
-    const session = await getServerSession(authOptions)
     
-    // Access control logic
+    // Determine access rights
     let hasAccess = false
     
     if (!media) {
-      return NextResponse.json(
-        { error: 'Image not found' },
-        { status: 404 }
-      )
-    }
-    
-    // Determine access rights
-    if (media.isPublic && media.isApproved) {
-      // Public and approved images are accessible to everyone
-      hasAccess = true
-    } else if (session?.user) {
-      // Logged-in users can see:
-      // 1. Their own images
-      // 2. Other images based on role
+      // If no media record but user is admin, allow access
+      if (session.user.role === 'ADMIN') {
+        console.log('Image API: Admin access granted (no media record)')
+        hasAccess = true
+      } else {
+        console.log('Image API: Media not found for filename:', filename)
+        return NextResponse.json(
+          { error: 'Image not found' },
+          { status: 404 }
+        )
+      }
+    } else {
+      // Check access based on role and ownership
       if (
         media.userId === session.user.id || // Own images
         session.user.role === 'ADMIN' || // Admins see everything
-        session.user.role === 'PRODUCER' // Producers see approved talent images
+        (session.user.role === 'PRODUCER' && media.isApproved && media.isPublic) // Producers see approved public
       ) {
         hasAccess = true
+        console.log('Image API: Access granted for user:', session.user.id)
       }
     }
     
     if (!hasAccess) {
+      console.log('Image API: Access denied for user:', session.user.id)
       return NextResponse.json(
         { error: 'Unauthorized' },
-        { status: 401 }
+        { status: 403 }
       )
     }
     
-    // Method 1: Redirect to signed URL (recommended)
-    // This is more efficient as it lets Cloudflare handle the image serving
-    const signedUrl = await getSignedImageUrl(filename, 3600) // 1 hour expiry
-    return NextResponse.redirect(signedUrl)
-    
-    // Method 2: Proxy through your server (alternative, uses more bandwidth)
-    // Uncomment if you prefer to hide R2 completely
-    /*
-    const imageBuffer = await getImage(filename)
-    const contentType = media.mimeType || 'image/jpeg'
-    
-    return new NextResponse(imageBuffer, {
-      headers: {
-        'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      },
-    })
-    */
+    try {
+      // For private buckets, we need to proxy the image through our server
+      // Using signed URLs with redirect doesn't always work with private buckets
+      console.log('Image API: Fetching image from R2:', filename)
+      
+      const imageBuffer = await getImage(filename)
+      const contentType = media?.mimeType || 'image/jpeg'
+      
+      console.log('Image API: Serving image, size:', imageBuffer.length)
+      
+      return new NextResponse(imageBuffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'private, max-age=3600', // Cache for 1 hour
+          'Content-Disposition': 'inline',
+        },
+      })
+      
+    } catch (r2Error) {
+      console.error('Image API: R2 Error:', r2Error)
+      
+      // If direct fetch fails, try with signed URL as fallback
+      try {
+        const signedUrl = await getSignedImageUrl(filename, 3600)
+        console.log('Image API: Falling back to signed URL redirect')
+        return NextResponse.redirect(signedUrl)
+      } catch (signedError) {
+        console.error('Image API: Signed URL Error:', signedError)
+        return NextResponse.json(
+          { error: 'Failed to retrieve image' },
+          { status: 500 }
+        )
+      }
+    }
     
   } catch (error) {
-    console.error('Error serving image:', error)
+    console.error('Image API Error:', error)
     return NextResponse.json(
-      { error: 'Failed to serve image' },
+      { error: 'Failed to serve image', details: error },
       { status: 500 }
     )
   }
