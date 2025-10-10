@@ -94,7 +94,9 @@ export default async function TalentProfilePage({ params }: PageProps) {
                     {user.profile?.stageName || user.username}
                   </h1>
                   {isVerified && (
-                    <CheckCircle className="w-6 h-6 text-green-500" title="Verified" />
+                    <div title="Verified">
+                      <CheckCircle className="w-6 h-6 text-green-500" />
+                    </div>
                   )}
                 </div>
                 
