@@ -45,14 +45,26 @@ model Profile {
   hairColor       String?
   eyeColor        String?
   ethnicity       String?
+  bodyType        String?   // athletic, slim, curvy, bbw, etc.
+  bustSize        String?   // 32, 34, 36, etc.
+  cupSize         String?   // A, B, C, D, DD, etc.
+  bodyHair        String?   // shaved, trimmed, natural
+  tattoos         Boolean   @default(false)
+  tattoosDescription String?
+  piercings       Boolean   @default(false)
+  piercingsDescription String?
+  
+  // Sexual Orientation & Preferences
+  sexualOrientation String? // straight, gay, lesbian, bisexual, pansexual, etc.
   
   // Professional Info
   experience      String[]
   willingToTravel Boolean   @default(false)
   availability    String?
   
-  // Talent Categories
-  categories      String[]  // ["modeling", "acting", "dancing", etc.]
+  // Job Categories - Adult specific
+  jobTypes        String[]  // ["softcore", "modeling", "hardcore", "boy-girl", "girl-girl", "group", "gangbang", "escorting", etc.]
+  categories      String[]  // General categories
   specialties     String[]  // Specific skills or interests
   
   // Contact & Social
@@ -60,6 +72,13 @@ model Profile {
   instagram       String?
   twitter         String?
   website         String?
+  
+  // Adult Platform Links
+  onlyfans        String?
+  pornhubProfile  String?
+  xhamsterProfile String?
+  redtubeProfile  String?
+  customLinks     Json?     // Array of {platform: string, url: string}
   
   // Status
   verified        Boolean   @default(false)
@@ -88,6 +107,7 @@ model Media {
   isProfilePhoto  Boolean   @default(false)
   isPublic        Boolean   @default(true)
   isApproved      Boolean   @default(false)
+  isExplicit      Boolean   @default(false) // New field for adult content
   
   views           Int       @default(0)
   
