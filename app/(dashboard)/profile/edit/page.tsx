@@ -1,13 +1,47 @@
-// app/(dashboard)/profile/edit/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { 
   User, Save, AlertCircle, CheckCircle, Camera, Link2, 
   MapPin, Calendar, Ruler, Eye, Palette, Heart, Info
 } from 'lucide-react'
+
+interface FormData {
+  stageName: string
+  bio: string
+  age: string
+  city: string
+  state: string
+  height: string
+  weight: string
+  measurements: string
+  hairColor: string
+  eyeColor: string
+  ethnicity: string
+  bodyType: string
+  bustSize: string
+  cupSize: string
+  bodyHair: string
+  tattoos: boolean
+  tattoosDescription: string
+  piercings: boolean
+  piercingsDescription: string
+  sexualOrientation: string
+  willingToTravel: boolean
+  availability: string
+  experience: string[]
+  jobTypes: string[]
+  phone: string
+  instagram: string
+  twitter: string
+  website: string
+  onlyfans: string
+  pornhubProfile: string
+  xhamsterProfile: string
+  redtubeProfile: string
+}
 
 export default function ProfileEditPage() {
   const { data: session, status } = useSession()
@@ -18,15 +52,12 @@ export default function ProfileEditPage() {
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState('basic')
 
-  const [formData, setFormData] = useState({
-    // Basic Info
+  const [formData, setFormData] = useState<FormData>({
     stageName: '',
     bio: '',
     age: '',
     city: 'Houston',
     state: 'Texas',
-    
-    // Physical Attributes
     height: '',
     weight: '',
     measurements: '',
@@ -41,25 +72,15 @@ export default function ProfileEditPage() {
     tattoosDescription: '',
     piercings: false,
     piercingsDescription: '',
-    
-    // Sexual Orientation
     sexualOrientation: '',
-    
-    // Professional
     willingToTravel: false,
     availability: '',
     experience: [],
-    
-    // Job Types (Adult categories)
     jobTypes: [],
-    
-    // Contact & Social
     phone: '',
     instagram: '',
     twitter: '',
     website: '',
-    
-    // Adult Platform Links
     onlyfans: '',
     pornhubProfile: '',
     xhamsterProfile: '',
@@ -101,7 +122,7 @@ export default function ProfileEditPage() {
     } else if (status === 'authenticated') {
       loadProfile()
     }
-  }, [status])
+  }, [status, router])
 
   const loadProfile = async () => {
     try {
@@ -125,15 +146,17 @@ export default function ProfileEditPage() {
     }
   }
 
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
+    const checked = (e.target as HTMLInputElement).checked
+    
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }))
   }
 
-  const handleJobTypeToggle = (jobType) => {
+  const handleJobTypeToggle = (jobType: string) => {
     setFormData(prev => ({
       ...prev,
       jobTypes: prev.jobTypes.includes(jobType)
@@ -142,7 +165,7 @@ export default function ProfileEditPage() {
     }))
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setSaving(true)
     setError('')
