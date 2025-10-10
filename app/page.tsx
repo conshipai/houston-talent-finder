@@ -13,9 +13,18 @@ export default function HomePage() {
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
               Houston Talent Finder
             </h1>
-            <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
-              Exclusive Platform for Adult Entertainment Professionals
+            <p className="text-xl md:text-2xl text-gray-300 mb-4 max-w-3xl mx-auto">
+              Exclusive Members-Only Platform for Adult Entertainment Professionals
             </p>
+            
+            <div className="bg-red-900/30 border border-red-600 rounded-lg p-4 mb-8 max-w-2xl mx-auto">
+              <p className="text-red-200 font-semibold">
+                🔒 All Content Requires Verified Membership
+              </p>
+              <p className="text-gray-300 text-sm mt-2">
+                Talent profiles and content are only accessible to registered, verified members
+              </p>
+            </div>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
@@ -28,12 +37,12 @@ export default function HomePage() {
                 href="/login"
                 className="inline-block bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-8 rounded-lg transition duration-200"
               >
-                Sign In
+                Member Sign In
               </Link>
             </div>
             
             <p className="mt-6 text-sm text-gray-400">
-              18+ Only • Members Only Platform • Verification Required
+              18+ Only • Verified Members Only • ID Required
             </p>
           </div>
         </div>
@@ -53,10 +62,10 @@ export default function HomePage() {
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">
-              Members Only
+              100% Private
             </h3>
             <p className="text-gray-400">
-              Registration and verification required to access talent profiles and content.
+              All talent profiles and content are behind secure login. No public access.
             </p>
           </div>
 
@@ -67,24 +76,24 @@ export default function HomePage() {
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">
-              Verified Profiles
+              Verified Members
             </h3>
             <p className="text-gray-400">
-              All talent profiles are reviewed and verified before activation.
+              All members are verified. Both talent and clients must pass verification.
             </p>
           </div>
 
           <div className="bg-gray-800 rounded-lg p-6">
             <div className="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center mb-4">
               <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">
               Professional Network
             </h3>
             <p className="text-gray-400">
-              Connect directly with verified producers and industry professionals.
+              Connect with verified producers and industry professionals. Paid opportunities.
             </p>
           </div>
         </div>
@@ -94,11 +103,21 @@ export default function HomePage() {
       <div className="bg-gray-800 py-16">
         <div className="max-w-4xl mx-auto text-center px-4">
           <h2 className="text-3xl font-bold text-white mb-4">
-            Join Our Exclusive Network
+            Ready to Join Our Exclusive Network?
           </h2>
           <p className="text-xl text-gray-300 mb-8">
-            Create your profile and connect with Houston's adult entertainment industry
+            Talent keeps full control of their content and pricing
           </p>
+          <div className="bg-gray-900 rounded-lg p-6 mb-8">
+            <h3 className="text-lg font-semibold text-white mb-3">For Talent</h3>
+            <ul className="text-gray-300 text-left max-w-2xl mx-auto space-y-2">
+              <li>✓ Your content stays behind paywall - members only access</li>
+              <li>✓ Set your own rates and boundaries</li>
+              <li>✓ Connect with verified, paying clients</li>
+              <li>✓ All photos require admin approval for safety</li>
+              <li>✓ Direct messaging with interested producers</li>
+            </ul>
+          </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/register"
@@ -110,7 +129,7 @@ export default function HomePage() {
               href="/login"
               className="inline-block bg-gray-700 hover:bg-gray-600 text-white font-semibold py-4 px-10 rounded-lg text-lg transition duration-200"
             >
-              Sign In to Browse
+              Member Sign In
             </Link>
           </div>
         </div>
@@ -121,11 +140,12 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 text-center text-gray-400 text-sm">
           <p className="mb-2">© 2024 Houston Talent Finder. All rights reserved.</p>
           <p className="text-xs mb-4">
-            This is a private, members-only platform. Must be 18+ to register.
+            Private members-only platform. Must be 18+ to register. All content is protected.
           </p>
           <div className="space-x-4">
             <Link href="/terms" className="hover:text-white">Terms of Service</Link>
             <Link href="/privacy" className="hover:text-white">Privacy Policy</Link>
+            <Link href="/2257" className="hover:text-white">2257 Compliance</Link>
             <Link href="/login" className="hover:text-white">Member Login</Link>
           </div>
         </div>
