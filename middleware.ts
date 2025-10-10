@@ -11,14 +11,17 @@ export default withAuth({
 export const config = {
   matcher: [
     "/dashboard/:path*",
-    "/profile/:path*",
-    "/media/:path*",
-    "/settings/:path*",
-    "/messages/:path*",
-    "/talent/:path*",        // Add this line to protect talent profiles
-    "/browse/:path*",        // Add this if you have a browse page
+    "/profile/:path*",      // User's own profile editing
+    "/media/:path*",        // User's media management
+    "/settings/:path*",     // User settings
+    "/messages/:path*",     // Messages
+    "/admin/:path*",        // Admin pages
+    "/talent/:path*",       // PROTECTED - Talent profiles require login
+    "/browse/:path*",       // PROTECTED - Browse page requires login
     "/api/upload/:path*",
     "/api/profile/:path*",
     "/api/messages/:path*",
+    "/api/admin/:path*",
+    "/api/talents/:path*",  // PROTECTED - API also requires auth
   ],
 }
