@@ -49,9 +49,19 @@ export async function POST(request: NextRequest) {
       file.type,
       session.user.id
     )
+    
+    // For private buckets, we need to use the API endpoint to serve images
+    // Store just the filename in the database, not full URLs
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    
+    // Create URLs that will go through our API endpoint
     const imageUrl = `${baseUrl}/api/images/${encodeURIComponent(uploadResult.filename)}`
-    const thumbnailUrl = `${baseUrl}/api/images/${encodeURIComponent(uploadResult.thumbnailFilename)}`
+    const thumbnailUrl = uploadResult.thumbnailFilename 
+      ? `${baseUrl}/api/images/${encodeURIComponent(uploadResult.thumbnailFilename)}`
+      : null
+    
+    console.log('Generated URLs:', { imageUrl, thumbnailUrl }) // Debug log
+
     // If this is a profile photo, unset any existing profile photos
     if (isProfilePhoto) {
       await prisma.media.updateMany({
@@ -69,9 +79,9 @@ export async function POST(request: NextRequest) {
     const media = await prisma.media.create({
       data: {
         userId: session.user.id,
-        filename: uploadResult.filename,
-        url: imageUrl,
-        thumbnailUrl: thumbnailUrl,
+        filename: uploadResult.filename,  // Store the R2 key
+        url: imageUrl,                    // Store the API endpoint URL
+        thumbnailUrl: thumbnailUrl,        // Store the API endpoint URL for thumbnail
         type: 'PHOTO',
         size: uploadResult.size,
         mimeType: uploadResult.mimeType,
@@ -97,7 +107,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json(
-      { message: 'Upload failed' },
+      { message: 'Upload failed', error: error },
       { status: 500 }
     )
   }
@@ -123,6 +133,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // The URLs in the database should already point to our API endpoint
     return NextResponse.json({ media })
 
   } catch (error) {
