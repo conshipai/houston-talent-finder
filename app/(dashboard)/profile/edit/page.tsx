@@ -3,10 +3,7 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { 
-  User, Save, AlertCircle, CheckCircle, Camera, Link2, 
-  MapPin, Calendar, Ruler, Eye, Palette, Heart, Info
-} from 'lucide-react'
+import { Save, AlertCircle, CheckCircle } from 'lucide-react'
 
 interface FormData {
   stageName: string
@@ -44,13 +41,14 @@ interface FormData {
 }
 
 export default function ProfileEditPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState('basic')
+  const [activeTab, setActiveTab] = useState<'basic' | 'physical' | 'professional' | 'links'>('basic')
 
   const [formData, setFormData] = useState<FormData>({
     stageName: '',
@@ -104,17 +102,26 @@ export default function ProfileEditPage() {
     { value: 'camming', label: 'Cam Shows/Live Streaming' },
     { value: 'custom', label: 'Custom Content' },
     { value: 'dancing', label: 'Exotic Dancing/Stripping' },
-  ]
+  ] as const
 
   // Physical attribute options
-  const bodyTypeOptions = ['Athletic', 'Slim', 'Average', 'Curvy', 'BBW', 'Muscular', 'Dad Bod', 'Twink', 'Bear']
-  const hairColorOptions = ['Black', 'Brown', 'Blonde', 'Red', 'Auburn', 'Gray', 'Colored/Dyed', 'Bald']
-  const eyeColorOptions = ['Brown', 'Blue', 'Green', 'Hazel', 'Gray', 'Amber']
-  const ethnicityOptions = ['White/Caucasian', 'Black/African American', 'Hispanic/Latino', 'Asian', 'Middle Eastern', 'Native American', 'Pacific Islander', 'Mixed/Other']
-  const bodyHairOptions = ['Fully Shaved/Bare', 'Trimmed', 'Natural', 'Landing Strip', 'Partially Shaved']
-  const orientationOptions = ['Straight', 'Gay', 'Lesbian', 'Bisexual', 'Pansexual', 'Curious', 'Open']
-  const bustSizeOptions = ['30', '32', '34', '36', '38', '40', '42', '44+']
-  const cupSizeOptions = ['A', 'B', 'C', 'D', 'DD', 'DDD/E', 'F', 'G+']
+  const bodyTypeOptions = ['Athletic', 'Slim', 'Average', 'Curvy', 'BBW', 'Muscular', 'Dad Bod', 'Twink', 'Bear'] as const
+  const hairColorOptions = ['Black', 'Brown', 'Blonde', 'Red', 'Auburn', 'Gray', 'Colored/Dyed', 'Bald'] as const
+  const eyeColorOptions = ['Brown', 'Blue', 'Green', 'Hazel', 'Gray', 'Amber'] as const
+  const ethnicityOptions = [
+    'White/Caucasian',
+    'Black/African American',
+    'Hispanic/Latino',
+    'Asian',
+    'Middle Eastern',
+    'Native American',
+    'Pacific Islander',
+    'Mixed/Other',
+  ] as const
+  const bodyHairOptions = ['Fully Shaved/Bare', 'Trimmed', 'Natural', 'Landing Strip', 'Partially Shaved'] as const
+  const orientationOptions = ['Straight', 'Gay', 'Lesbian', 'Bisexual', 'Pansexual', 'Curious', 'Open'] as const
+  const bustSizeOptions = ['30', '32', '34', '36', '38', '40', '42', '44+'] as const
+  const cupSizeOptions = ['A', 'B', 'C', 'D', 'DD', 'DDD/E', 'F', 'G+'] as const
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -130,7 +137,7 @@ export default function ProfileEditPage() {
       const response = await fetch('/api/profile')
       if (response.ok) {
         const data = await response.json()
-        if (data.profile) {
+        if (data?.profile) {
           setFormData(prev => ({
             ...prev,
             ...data.profile,
@@ -138,21 +145,33 @@ export default function ProfileEditPage() {
             experience: data.profile.experience || [],
           }))
         }
+      } else {
+        // Avoid throwing if server sent HTML/text
+        try {
+          const err = await response.json()
+          setError(err?.message || 'Failed to load profile')
+        } catch {
+          setError('Failed to load profile')
+        }
       }
-    } catch (error) {
-      console.error('Error loading profile:', error)
+    } catch (err) {
+      console.error('Error loading profile:', err)
+      setError('Error loading profile')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target
-    const checked = (e.target as HTMLInputElement).checked
-    
+  const handleInputChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const target = e.target as HTMLInputElement
+    const { name, value, type } = target
+    const checked = type === 'checkbox' ? target.checked : undefined
+
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? !!checked : value,
     }))
   }
 
@@ -161,11 +180,11 @@ export default function ProfileEditPage() {
       ...prev,
       jobTypes: prev.jobTypes.includes(jobType)
         ? prev.jobTypes.filter(j => j !== jobType)
-        : [...prev.jobTypes, jobType]
+        : [...prev.jobTypes, jobType],
     }))
   }
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setSaving(true)
     setError('')
@@ -174,20 +193,22 @@ export default function ProfileEditPage() {
     try {
       const response = await fetch('/api/profile', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       })
 
       if (response.ok) {
         setSuccess(true)
         setTimeout(() => setSuccess(false), 3000)
       } else {
-        const data = await response.json()
-        setError(data.message || 'Failed to update profile')
+        try {
+          const data = await response.json()
+          setError(data?.message || 'Failed to update profile')
+        } catch {
+          setError('Failed to update profile')
+        }
       }
-    } catch (error) {
+    } catch (err) {
       setError('An error occurred. Please try again.')
     } finally {
       setSaving(false)
@@ -217,6 +238,7 @@ export default function ProfileEditPage() {
               <p className="text-gray-400 mt-1">Update your talent profile information</p>
             </div>
             <button
+              type="button"
               onClick={() => router.push('/dashboard')}
               className="text-gray-400 hover:text-white"
             >
@@ -234,7 +256,7 @@ export default function ProfileEditPage() {
             <p className="text-green-200">Profile updated successfully!</p>
           </div>
         )}
-        
+
         {error && (
           <div className="mb-6 p-4 bg-red-900/50 border border-red-600 rounded-lg flex items-center">
             <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
@@ -245,24 +267,28 @@ export default function ProfileEditPage() {
         {/* Tabs */}
         <div className="flex space-x-4 mb-6 border-b border-gray-700">
           <button
+            type="button"
             onClick={() => setActiveTab('basic')}
             className={`pb-3 px-1 ${activeTab === 'basic' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'}`}
           >
             Basic Info
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('physical')}
             className={`pb-3 px-1 ${activeTab === 'physical' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'}`}
           >
             Physical Attributes
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('professional')}
             className={`pb-3 px-1 ${activeTab === 'professional' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'}`}
           >
             Professional
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('links')}
             className={`pb-3 px-1 ${activeTab === 'links' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'}`}
           >
@@ -276,7 +302,7 @@ export default function ProfileEditPage() {
           {activeTab === 'basic' && (
             <div className="bg-gray-800 rounded-lg p-6 space-y-6">
               <h2 className="text-xl font-semibold text-white mb-4">Basic Information</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -291,7 +317,7 @@ export default function ProfileEditPage() {
                     placeholder="Your professional name"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Age
@@ -301,12 +327,12 @@ export default function ProfileEditPage() {
                     name="age"
                     value={formData.age}
                     onChange={handleInputChange}
-                    min="18"
+                    min={18}
                     className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Bio / About Me
@@ -320,21 +346,21 @@ export default function ProfileEditPage() {
                   placeholder="Tell producers about yourself..."
                 />
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     City
                   </label>
-                  <input
-                    type="text"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
+                    <input
+                      type="text"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                    />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     State
@@ -348,7 +374,7 @@ export default function ProfileEditPage() {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Sexual Orientation
@@ -372,7 +398,7 @@ export default function ProfileEditPage() {
           {activeTab === 'physical' && (
             <div className="bg-gray-800 rounded-lg p-6 space-y-6">
               <h2 className="text-xl font-semibold text-white mb-4">Physical Attributes</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -390,7 +416,7 @@ export default function ProfileEditPage() {
                     ))}
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Height
@@ -400,12 +426,12 @@ export default function ProfileEditPage() {
                     name="height"
                     value={formData.height}
                     onChange={handleInputChange}
-                    placeholder='e.g., 5\'7"'
+                    placeholder={'e.g., 5\'7"'}
                     className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
                   />
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -423,7 +449,7 @@ export default function ProfileEditPage() {
                     ))}
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Eye Color
@@ -441,7 +467,7 @@ export default function ProfileEditPage() {
                   </select>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -459,7 +485,7 @@ export default function ProfileEditPage() {
                     ))}
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Cup Size
@@ -477,7 +503,7 @@ export default function ProfileEditPage() {
                   </select>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Body Hair / Grooming
@@ -494,7 +520,7 @@ export default function ProfileEditPage() {
                   ))}
                 </select>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Ethnicity
@@ -511,7 +537,7 @@ export default function ProfileEditPage() {
                   ))}
                 </select>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="flex items-center">
                   <input
@@ -526,7 +552,7 @@ export default function ProfileEditPage() {
                     I have tattoos
                   </label>
                 </div>
-                
+
                 {formData.tattoos && (
                   <input
                     type="text"
@@ -537,7 +563,7 @@ export default function ProfileEditPage() {
                     className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
                   />
                 )}
-                
+
                 <div className="flex items-center">
                   <input
                     type="checkbox"
@@ -551,7 +577,7 @@ export default function ProfileEditPage() {
                     I have piercings
                   </label>
                 </div>
-                
+
                 {formData.piercings && (
                   <input
                     type="text"
@@ -563,7 +589,7 @@ export default function ProfileEditPage() {
                   />
                 )}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Measurements (Optional)
@@ -584,7 +610,7 @@ export default function ProfileEditPage() {
           {activeTab === 'professional' && (
             <div className="bg-gray-800 rounded-lg p-6 space-y-6">
               <h2 className="text-xl font-semibold text-white mb-4">Professional Information</h2>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-4">
                   Types of Work Interested In
@@ -606,7 +632,7 @@ export default function ProfileEditPage() {
                   ))}
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Availability
@@ -625,7 +651,7 @@ export default function ProfileEditPage() {
                   <option value="By Appointment">By Appointment Only</option>
                 </select>
               </div>
-              
+
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -646,10 +672,10 @@ export default function ProfileEditPage() {
           {activeTab === 'links' && (
             <div className="bg-gray-800 rounded-lg p-6 space-y-6">
               <h2 className="text-xl font-semibold text-white mb-4">Links & Adult Platforms</h2>
-              
+
               <div className="space-y-4">
                 <h3 className="text-lg font-medium text-white">Adult Platforms</h3>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     OnlyFans URL
@@ -663,7 +689,7 @@ export default function ProfileEditPage() {
                     className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     PornHub Profile
@@ -677,7 +703,7 @@ export default function ProfileEditPage() {
                     className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     XHamster Profile
@@ -691,7 +717,7 @@ export default function ProfileEditPage() {
                     className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     RedTube Profile
@@ -706,10 +732,10 @@ export default function ProfileEditPage() {
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-4 pt-6 border-t border-gray-700">
                 <h3 className="text-lg font-medium text-white">Social Media</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -724,7 +750,7 @@ export default function ProfileEditPage() {
                       className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       Twitter/X Handle
@@ -739,7 +765,7 @@ export default function ProfileEditPage() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Personal Website
