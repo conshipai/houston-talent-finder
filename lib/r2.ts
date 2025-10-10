@@ -1,182 +1,117 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3"
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
-import sharp from "sharp"
-import { v4 as uuidv4 } from "uuid"
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getSignedImageUrl, getImage } from '@/lib/r2'
+import { prisma } from '@/lib/db'
 
-// Initialize R2 client
-const r2Client = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-  },
-})
-
-export interface UploadResult {
-  filename: string
-  thumbnailFilename: string
-  size: number
-  mimeType: string
-}
-
-/**
- * Upload image to R2 with automatic thumbnail generation
- * Returns filenames only (not URLs) since we're using private access
- */
-export async function uploadImage(
-  file: Buffer,
-  mimeType: string,
-  userId: string
-): Promise<UploadResult> {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { filename: string } }
+) {
   try {
-    // Generate unique filename
-    const extension = mimeType.split('/')[1]
-    const filename = `${userId}/${uuidv4()}.${extension}`
-    const thumbnailFilename = `${userId}/thumb_${uuidv4()}.${extension}`
-
-    // Process main image (optimize but maintain quality)
-    const processedImage = await sharp(file)
-      .resize(2000, 2000, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: 90 })
-      .toBuffer()
-
-    // Create thumbnail
-    const thumbnail = await sharp(file)
-      .resize(400, 400, {
-        fit: 'cover',
-        position: 'centre',
-      })
-      .jpeg({ quality: 80 })
-      .toBuffer()
-
-    // Upload main image
-    const uploadCommand = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME!,
-      Key: filename,
-      Body: processedImage,
-      ContentType: mimeType,
-    })
-    await r2Client.send(uploadCommand)
-
-    // Upload thumbnail
-    const thumbnailCommand = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME!,
-      Key: thumbnailFilename,
-      Body: thumbnail,
-      ContentType: 'image/jpeg',
-    })
-    await r2Client.send(thumbnailCommand)
-
-    return {
-      filename,
-      thumbnailFilename,
-      size: processedImage.length,
-      mimeType: 'image/jpeg',
-    }
-  } catch (error) {
-    console.error('Error uploading to R2:', error)
-    throw new Error('Failed to upload image')
-  }
-}
-
-/**
- * Generate a presigned URL for secure image access
- * URLs are temporary and expire after specified time
- */
-export async function getSignedImageUrl(
-  filename: string,
-  expiresIn: number = 3600 // 1 hour default
-): Promise<string> {
-  try {
-    const command = new GetObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME!,
-      Key: filename,
-    })
-
-    const url = await getSignedUrl(r2Client, command, { expiresIn })
-    return url
-  } catch (error) {
-    console.error('Error generating signed URL:', error)
-    throw new Error('Failed to generate image URL')
-  }
-}
-
-/**
- * Get image as buffer (for serving through API)
- */
-export async function getImage(filename: string): Promise<Buffer> {
-  try {
-    const command = new GetObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME!,
-      Key: filename,
-    })
-
-    const response = await r2Client.send(command)
-    const chunks: Uint8Array[] = []
+    const filename = decodeURIComponent(params.filename)
+    console.log('Image API: Requesting filename:', filename) // Debug log
     
-    if (response.Body) {
-      for await (const chunk of response.Body as any) {
-        chunks.push(chunk)
+    // Get session to check if user is authenticated
+    const session = await getServerSession(authOptions)
+    
+    // For private buckets, we MUST have authentication
+    if (!session?.user?.id) {
+      console.log('Image API: No authenticated user')
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
+    // Try to find the media record
+    const media = await prisma.media.findFirst({
+      where: {
+        OR: [
+          { filename },
+          { filename: { contains: filename } },
+        ],
+      },
+      include: {
+        user: true,
+      }
+    })
+    
+    // Determine access rights
+    let hasAccess = false
+    
+    if (!media) {
+      // If no media record but user is admin, allow access
+      if (session.user.role === 'ADMIN') {
+        console.log('Image API: Admin access granted (no media record)')
+        hasAccess = true
+      } else {
+        console.log('Image API: Media not found for filename:', filename)
+        return NextResponse.json(
+          { error: 'Image not found' },
+          { status: 404 }
+        )
+      }
+    } else {
+      // Check access based on role and ownership
+      if (
+        media.userId === session.user.id || // Own images
+        session.user.role === 'ADMIN' || // Admins see everything
+        (session.user.role === 'PRODUCER' && media.isApproved && media.isPublic) // Producers see approved public
+      ) {
+        hasAccess = true
+        console.log('Image API: Access granted for user:', session.user.id)
       }
     }
     
-    return Buffer.concat(chunks)
+    if (!hasAccess) {
+      console.log('Image API: Access denied for user:', session.user.id)
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 403 }
+      )
+    }
+    
+    try {
+      // For private buckets, we need to proxy the image through our server
+      // Using signed URLs with redirect doesn't always work with private buckets
+      console.log('Image API: Fetching image from R2:', filename)
+      
+      const imageBuffer = await getImage(filename)
+      const contentType = media?.mimeType || 'image/jpeg'
+      
+      console.log('Image API: Serving image, size:', imageBuffer.length)
+      
+      return new NextResponse(imageBuffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'private, max-age=3600', // Cache for 1 hour
+          'Content-Disposition': 'inline',
+        },
+      })
+      
+    } catch (r2Error) {
+      console.error('Image API: R2 Error:', r2Error)
+      
+      // If direct fetch fails, try with signed URL as fallback
+      try {
+        const signedUrl = await getSignedImageUrl(filename, 3600)
+        console.log('Image API: Falling back to signed URL redirect')
+        return NextResponse.redirect(signedUrl)
+      } catch (signedError) {
+        console.error('Image API: Signed URL Error:', signedError)
+        return NextResponse.json(
+          { error: 'Failed to retrieve image' },
+          { status: 500 }
+        )
+      }
+    }
+    
   } catch (error) {
-    console.error('Error fetching image from R2:', error)
-    throw new Error('Failed to fetch image')
+    console.error('Image API Error:', error)
+    return NextResponse.json(
+      { error: 'Failed to serve image', details: error },
+      { status: 500 }
+    )
   }
-}
-
-/**
- * Delete image from R2
- */
-export async function deleteImage(filename: string): Promise<void> {
-  try {
-    const deleteCommand = new DeleteObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME!,
-      Key: filename,
-    })
-    await r2Client.send(deleteCommand)
-  } catch (error) {
-    console.error('Error deleting from R2:', error)
-    throw new Error('Failed to delete image')
-  }
-}
-
-/**
- * Generate a presigned URL for direct uploads (optional - for large files)
- */
-export async function getPresignedUploadUrl(
-  filename: string,
-  contentType: string
-): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: process.env.R2_BUCKET_NAME!,
-    Key: filename,
-    ContentType: contentType,
-  })
-
-  return await getSignedUrl(r2Client, command, { expiresIn: 3600 })
-}
-
-/**
- * Validate image file
- */
-export function validateImage(file: File): { valid: boolean; error?: string } {
-  const MAX_SIZE = 10 * 1024 * 1024 // 10MB
-  const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-
-  if (file.size > MAX_SIZE) {
-    return { valid: false, error: 'File size must be less than 10MB' }
-  }
-
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return { valid: false, error: 'File must be JPEG, PNG, or WebP' }
-  }
-
-  return { valid: true }
 }
