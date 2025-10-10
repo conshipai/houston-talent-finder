@@ -3,7 +3,7 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Camera, User, Settings, LogOut, Upload, Eye } from 'lucide-react'
+import { Camera, User, Settings, LogOut, Upload, Eye, MessageSquare } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 
 export default function DashboardPage() {
@@ -30,6 +30,7 @@ export default function DashboardPage() {
     { icon: Upload, label: 'Upload Photos', href: '/media/upload', description: 'Add new photos to your portfolio' },
     { icon: Eye, label: 'View Profile', href: '/talent/' + session?.user?.username, description: 'See your public profile' },
     { icon: Settings, label: 'Settings', href: '/settings', description: 'Account and privacy settings' },
+    { icon: MessageSquare, label: 'Messages', href: '/messages', description: 'View and send messages' },
   ]
 
   return (
