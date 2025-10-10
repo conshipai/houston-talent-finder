@@ -46,7 +46,7 @@ interface FormData {
 export default function ProfileEditPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -194,12 +194,16 @@ export default function ProfileEditPage() {
     }
   }
 
-  if (loading) {
+  if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
         <div className="text-white text-xl">Loading profile...</div>
       </div>
     )
+  }
+
+  if (status === 'unauthenticated') {
+    return null
   }
 
   return (
