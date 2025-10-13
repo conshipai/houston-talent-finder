@@ -46,7 +46,9 @@ export async function GET(
       if (session.user.role === 'ADMIN') {
         try {
           const imageBuffer = await getImage(filename)
-          return new NextResponse(imageBuffer, {
+          // Convert Buffer to Uint8Array for NextResponse
+          const uint8Array = new Uint8Array(imageBuffer)
+          return new NextResponse(uint8Array, {
             status: 200,
             headers: {
               'Content-Type': 'image/jpeg',
@@ -107,8 +109,11 @@ export async function GET(
       
       console.log('Image API: Successfully fetched image, size:', imageBuffer.length, 'bytes')
       
+      // Convert Buffer to Uint8Array for NextResponse
+      const uint8Array = new Uint8Array(imageBuffer)
+      
       // Return the image with appropriate headers
-      return new NextResponse(imageBuffer, {
+      return new NextResponse(uint8Array, {
         status: 200,
         headers: {
           'Content-Type': contentType,
@@ -132,7 +137,10 @@ export async function GET(
           console.log('Image API: Trying alternative key:', altKey)
           const imageBuffer = await getImage(altKey)
           
-          return new NextResponse(imageBuffer, {
+          // Convert Buffer to Uint8Array for NextResponse
+          const uint8Array = new Uint8Array(imageBuffer)
+          
+          return new NextResponse(uint8Array, {
             status: 200,
             headers: {
               'Content-Type': media.mimeType || 'image/jpeg',
