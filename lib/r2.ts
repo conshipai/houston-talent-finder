@@ -3,6 +3,7 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } fro
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import sharp from "sharp"
 import { v4 as uuidv4 } from "uuid"
+import { Readable } from "stream"
 
 // Initialize R2 client with proper configuration
 const r2Client = new S3Client({
@@ -120,21 +121,42 @@ export async function getImage(filename: string): Promise<Buffer> {
     if (!response.Body) {
       throw new Error('No image data received from R2')
     }
+    let buffer: Buffer | null = null
+      const body = response.Body as unknown
+  
+      // Handle Node.js Readable streams (default in AWS SDK on Node runtime)
+      if (body instanceof Readable) {
+        const chunks: Buffer[] = []
+        for await (const chunk of body) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+        }
+        buffer = Buffer.concat(chunks)
+    }
+     // Handle Web ReadableStreams (Edge/runtime environments)
+    else if (typeof (body as ReadableStream).getReader === 'function') {
+      const reader = (body as ReadableStream<Uint8Array>).getReader()
+      const chunks: Uint8Array[] = []
 
-    // Convert stream to buffer - R2 returns a web stream
-    const stream = response.Body as ReadableStream
-    const reader = stream.getReader()
-    const chunks: Uint8Array[] = []
-    
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (value) chunks.push(value)
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) chunks.push(value)
+      }
+
+      buffer = Buffer.concat(chunks.map(chunk => Buffer.from(chunk)))
+    }
+    // Some environments expose a helper to convert to byte array directly
+    else if (typeof (body as { transformToByteArray?: () => Promise<Uint8Array> }).transformToByteArray === 'function') {
+      const bytes = await (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray()
+      buffer = Buffer.from(bytes)
+    }
+
+    if (!buffer) {
+      throw new Error('Unsupported response body type when reading from R2')
     }
     
-    const buffer = Buffer.concat(chunks.map(chunk => Buffer.from(chunk)))
     console.log('R2: Image fetched successfully, size:', buffer.length, 'bytes')
-    
+  
     return buffer
   } catch (error) {
     console.error('R2 Get Image Error for key:', filename, error)
