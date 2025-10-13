@@ -28,16 +28,20 @@ export interface UploadResult {
 export async function uploadImage(
   file: Buffer,
   mimeType: string,
-  userId: string
+  userId: string,
+  userRole?: string
 ): Promise<UploadResult> {
   try {
-    // Generate unique filename
+    // Generate unique filename with role-based prefix
     const extension = mimeType.split('/')[1] || 'jpg'
     const uniqueId = uuidv4()
-    const filename = `${userId}/${uniqueId}.${extension}`
-    const thumbnailFilename = `${userId}/thumb_${uniqueId}.${extension}`
     
-    console.log('R2: Uploading files:', { filename, thumbnailFilename })
+    // Add 'talent/' prefix for TALENT role users
+    const prefix = userRole === 'TALENT' ? 'talent/' : ''
+    const filename = `${prefix}${userId}/${uniqueId}.${extension}`
+    const thumbnailFilename = `${prefix}${userId}/thumb_${uniqueId}.${extension}`
+    
+    console.log('R2: Uploading files:', { filename, thumbnailFilename, userRole })
 
     // Process main image (optimize but maintain quality)
     const processedImage = await sharp(file)
