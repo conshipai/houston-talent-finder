@@ -1,9 +1,10 @@
+// lib/r2.ts
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import sharp from "sharp"
 import { v4 as uuidv4 } from "uuid"
 
-// Initialize R2 client
+// Initialize R2 client with proper configuration
 const r2Client = new S3Client({
   region: "auto",
   endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -11,6 +12,7 @@ const r2Client = new S3Client({
     accessKeyId: process.env.R2_ACCESS_KEY_ID!,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
   },
+  forcePathStyle: true, // Important for R2
 })
 
 export interface UploadResult {
@@ -60,7 +62,11 @@ export async function uploadImage(
       Bucket: process.env.R2_BUCKET_NAME!,
       Key: filename,
       Body: processedImage,
-      ContentType: 'image/jpeg', // Always JPEG after processing
+      ContentType: 'image/jpeg',
+      Metadata: {
+        'user-id': userId,
+        'original-type': mimeType,
+      }
     })
     
     await r2Client.send(uploadCommand)
@@ -72,6 +78,10 @@ export async function uploadImage(
       Key: thumbnailFilename,
       Body: thumbnail,
       ContentType: 'image/jpeg',
+      Metadata: {
+        'user-id': userId,
+        'is-thumbnail': 'true',
+      }
     })
     
     await r2Client.send(thumbnailCommand)
@@ -85,17 +95,16 @@ export async function uploadImage(
     }
   } catch (error) {
     console.error('R2 Upload Error:', error)
-    throw new Error('Failed to upload image to R2')
+    throw new Error(`Failed to upload image to R2: ${error}`)
   }
 }
 
 /**
  * Get image as buffer (for serving through API)
- * This is the main method for private buckets
  */
 export async function getImage(filename: string): Promise<Buffer> {
   try {
-    console.log('R2: Fetching image:', filename)
+    console.log('R2: Fetching image with key:', filename)
     
     const command = new GetObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME!,
@@ -108,27 +117,35 @@ export async function getImage(filename: string): Promise<Buffer> {
       throw new Error('No image data received from R2')
     }
 
-    // Convert stream to buffer
+    // Convert stream to buffer - R2 returns a web stream
+    const stream = response.Body as ReadableStream
+    const reader = stream.getReader()
     const chunks: Uint8Array[] = []
     
-    // @ts-ignore - Body is a readable stream
-    for await (const chunk of response.Body) {
-      chunks.push(chunk)
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) chunks.push(value)
     }
     
-    const buffer = Buffer.concat(chunks)
-    console.log('R2: Image fetched, size:', buffer.length)
+    const buffer = Buffer.concat(chunks.map(chunk => Buffer.from(chunk)))
+    console.log('R2: Image fetched successfully, size:', buffer.length, 'bytes')
     
     return buffer
   } catch (error) {
-    console.error('R2 Get Image Error:', error)
-    throw new Error(`Failed to fetch image from R2: ${error}`)
+    console.error('R2 Get Image Error for key:', filename, error)
+    
+    // If the error is NoSuchKey, provide more helpful message
+    if ((error as any).name === 'NoSuchKey' || (error as any).$metadata?.httpStatusCode === 404) {
+      throw new Error(`Image not found in R2 storage: ${filename}`)
+    }
+    
+    throw error
   }
 }
 
 /**
  * Generate a presigned URL for secure image access
- * This is a fallback method for private buckets
  */
 export async function getSignedImageUrl(
   filename: string,
@@ -168,24 +185,29 @@ export async function deleteImage(filename: string): Promise<void> {
     console.log('R2: Image deleted successfully')
   } catch (error) {
     console.error('R2 Delete Error:', error)
-    throw new Error('Failed to delete image from R2')
+    // Don't throw error if file doesn't exist
+    if ((error as any).name !== 'NoSuchKey') {
+      throw new Error('Failed to delete image from R2')
+    }
   }
 }
 
 /**
- * Generate a presigned URL for direct uploads (optional - for large files)
+ * Check if image exists in R2
  */
-export async function getPresignedUploadUrl(
-  filename: string,
-  contentType: string
-): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: process.env.R2_BUCKET_NAME!,
-    Key: filename,
-    ContentType: contentType,
-  })
-
-  return await getSignedUrl(r2Client, command, { expiresIn: 3600 })
+export async function imageExists(filename: string): Promise<boolean> {
+  try {
+    const command = new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Key: filename,
+    })
+    
+    // Just check if we can get metadata
+    const response = await r2Client.send(command)
+    return !!response.Body
+  } catch (error) {
+    return false
+  }
 }
 
 /**
