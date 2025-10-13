@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getSignedImageUrl, getImage } from '@/lib/r2'
+import { getImage } from '@/lib/r2'
 import { prisma } from '@/lib/db'
 
 export async function GET(
@@ -24,42 +24,56 @@ export async function GET(
       )
     }
     
-        // Try to find the media record
-   const media = await prisma.media.findFirst({
-  where: {
-    OR: [
-      { filename },
-      { filename: { contains: filename } },
-      { thumbnailUrl: { contains: filename } },  // ✅ Use thumbnailUrl like in GET method
-    ],
-  },
-})
-        
-    // Determine access rights
-    let hasAccess = false
+    // Try to find the media record by filename
+    const media = await prisma.media.findFirst({
+      where: {
+        OR: [
+          { filename },
+          { filename: { endsWith: filename } },
+          { url: { contains: filename } },
+          { thumbnailUrl: { contains: filename } },
+        ],
+      },
+      include: {
+        user: true
+      }
+    })
     
     if (!media) {
-      // If no media record but user is admin, allow access
+      console.log('Image API: Media record not found for filename:', filename)
+      
+      // If admin, try to fetch directly from R2
       if (session.user.role === 'ADMIN') {
-        console.log('Image API: Admin access granted (no media record)')
-        hasAccess = true
-      } else {
-        console.log('Image API: Media not found for filename:', filename)
-        return NextResponse.json(
-          { error: 'Image not found' },
-          { status: 404 }
-        )
+        try {
+          const imageBuffer = await getImage(filename)
+          return new NextResponse(imageBuffer, {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/jpeg',
+              'Cache-Control': 'private, max-age=3600',
+            },
+          })
+        } catch (error) {
+          console.error('Image API: Failed to fetch for admin:', error)
+        }
       }
-    } else {
-      // Check access based on role and ownership
-      if (
-        media.userId === session.user.id || // Own images
-        session.user.role === 'ADMIN' || // Admins see everything
-        (session.user.role === 'PRODUCER' && media.isApproved && media.isPublic) // Producers see approved public
-      ) {
-        hasAccess = true
-        console.log('Image API: Access granted for user:', session.user.id)
-      }
+      
+      return NextResponse.json(
+        { error: 'Image not found' },
+        { status: 404 }
+      )
+    }
+    
+    // Check access rights
+    let hasAccess = false
+    
+    if (
+      media.userId === session.user.id || // Own images
+      session.user.role === 'ADMIN' || // Admins see everything
+      (session.user.role === 'PRODUCER' && media.isApproved && media.isPublic) // Producers see approved public
+    ) {
+      hasAccess = true
+      console.log('Image API: Access granted for user:', session.user.id)
     }
     
     if (!hasAccess) {
@@ -71,51 +85,70 @@ export async function GET(
     }
     
     try {
-      // For private buckets, we need to proxy the image through our server
-      console.log('Image API: Fetching image from R2:', filename)
+      // Determine the actual R2 key to fetch
+      let r2Key = media.filename
       
-      const imageBuffer = await getImage(filename)
-      const contentType = media?.mimeType || 'image/jpeg'
+      // If the filename in the request contains 'thumb_', use the thumbnail filename
+      if (filename.includes('thumb_') && media.thumbnailUrl) {
+        // Extract the thumbnail filename from the thumbnailUrl
+        const thumbParts = media.thumbnailUrl.split('/')
+        const thumbFilename = thumbParts[thumbParts.length - 1]
+        if (thumbFilename) {
+          // Construct the full R2 key for the thumbnail
+          const userIdPart = media.filename.split('/')[0]
+          r2Key = `${userIdPart}/${decodeURIComponent(thumbFilename)}`
+        }
+      }
       
-      console.log('Image API: Serving image, size:', imageBuffer.length, 'bytes')
+      console.log('Image API: Fetching from R2 with key:', r2Key)
       
-      // Convert Buffer to Uint8Array for NextResponse
-      const uint8Array = new Uint8Array(imageBuffer);
+      const imageBuffer = await getImage(r2Key)
+      const contentType = media.mimeType || 'image/jpeg'
+      
+      console.log('Image API: Successfully fetched image, size:', imageBuffer.length, 'bytes')
       
       // Return the image with appropriate headers
-      return new NextResponse(uint8Array, {
+      return new NextResponse(imageBuffer, {
         status: 200,
         headers: {
           'Content-Type': contentType,
-          'Cache-Control': 'private, max-age=3600', // Cache for 1 hour
+          'Cache-Control': 'private, max-age=3600',
           'Content-Disposition': 'inline',
-          'Content-Length': imageBuffer.length.toString(),
         },
       })
       
     } catch (r2Error) {
       console.error('Image API: R2 Error:', r2Error)
       
-      // If direct fetch fails, try with signed URL as fallback
-      try {
-        console.log('Image API: Attempting signed URL fallback')
-        const signedUrl = await getSignedImageUrl(filename, 3600)
-        console.log('Image API: Redirecting to signed URL')
-        
-        // Return redirect response
-        return NextResponse.redirect(signedUrl, {
-          status: 302,
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-          }
-        })
-      } catch (signedError) {
-        console.error('Image API: Signed URL Error:', signedError)
-        return NextResponse.json(
-          { error: 'Failed to retrieve image', details: (signedError as Error).message },
-          { status: 500 }
-        )
+      // Try alternative keys if the first attempt fails
+      const alternativeKeys = [
+        media.filename,
+        `${session.user.id}/${filename}`,
+        filename,
+      ]
+      
+      for (const altKey of alternativeKeys) {
+        try {
+          console.log('Image API: Trying alternative key:', altKey)
+          const imageBuffer = await getImage(altKey)
+          
+          return new NextResponse(imageBuffer, {
+            status: 200,
+            headers: {
+              'Content-Type': media.mimeType || 'image/jpeg',
+              'Cache-Control': 'private, max-age=3600',
+            },
+          })
+        } catch (altError) {
+          console.log('Image API: Alternative key failed:', altKey)
+          continue
+        }
       }
+      
+      return NextResponse.json(
+        { error: 'Failed to retrieve image', details: (r2Error as Error).message },
+        { status: 500 }
+      )
     }
     
   } catch (error) {
@@ -124,53 +157,5 @@ export async function GET(
       { error: 'Failed to serve image', details: (error as Error).message },
       { status: 500 }
     )
-  }
-}
-
-// Optional: Add HEAD method for checking if image exists
-export async function HEAD(
-  request: NextRequest,
-  { params }: { params: { filename: string } }
-) {
-  try {
-    const filename = decodeURIComponent(params.filename)
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user?.id) {
-      return new NextResponse(null, { status: 401 })
-    }
-    
-    const media = await prisma.media.findFirst({
-      where: {
-        OR: [
-          { filename },
-          { filename: { contains: filename } },
-          { thumbnailUrl: { contains: filename } },
-        ],
-      },
-    })
-    
-    if (!media) {
-      return new NextResponse(null, { status: 404 })
-    }
-    
-    // Check access
-    if (
-      media.userId !== session.user.id &&
-      session.user.role !== 'ADMIN' &&
-      !(session.user.role === 'PRODUCER' && media.isApproved && media.isPublic)
-    ) {
-      return new NextResponse(null, { status: 403 })
-    }
-    
-    return new NextResponse(null, { 
-      status: 200,
-      headers: {
-        'Content-Type': media.mimeType || 'image/jpeg',
-      }
-    })
-  } catch (error) {
-    console.error('Image HEAD Error:', error)
-    return new NextResponse(null, { status: 500 })
   }
 }
