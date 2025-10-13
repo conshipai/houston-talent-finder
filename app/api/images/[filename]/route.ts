@@ -25,19 +25,15 @@ export async function GET(
     }
     
         // Try to find the media record
-    const media = await prisma.media.findFirst({
-      where: {
-        OR: [
-          { filename },
-          { filename: { contains: filename } },
-          // Check if this might be a thumbnail by looking in the URL
-          { thumbnailUrl: { contains: filename } },
-        ],
-      },
-      include: {
-        user: true,
-      }
-    })
+   const media = await prisma.media.findFirst({
+  where: {
+    OR: [
+      { filename },
+      { filename: { contains: filename } },
+      { thumbnailUrl: { contains: filename } },  // ✅ Use thumbnailUrl like in GET method
+    ],
+  },
+})
         
     // Determine access rights
     let hasAccess = false
