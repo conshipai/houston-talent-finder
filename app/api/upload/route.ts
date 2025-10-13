@@ -1,3 +1,4 @@
+// app/api/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -43,24 +44,33 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    // Upload to R2
+    // Upload to R2 with user role
     const uploadResult = await uploadImage(
       buffer,
       file.type,
-      session.user.id
+      session.user.id,
+      session.user.role // Pass the user's role
     )
     
     // For private buckets, we need to use the API endpoint to serve images
-    // Store just the filename in the database, not full URLs
+    // Store the full R2 key in the database
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
     
+    // Extract just the filename (without user ID path) for the URL
+    const imageFilename = uploadResult.filename.split('/').pop()!
+    const thumbnailFilename = uploadResult.thumbnailFilename ? uploadResult.thumbnailFilename.split('/').pop()! : null
+    
     // Create URLs that will go through our API endpoint
-    const imageUrl = `${baseUrl}/api/images/${encodeURIComponent(uploadResult.filename)}`
-    const thumbnailUrl = uploadResult.thumbnailFilename 
-      ? `${baseUrl}/api/images/${encodeURIComponent(uploadResult.thumbnailFilename)}`
+    const imageUrl = `${baseUrl}/api/images/${encodeURIComponent(imageFilename)}`
+    const thumbnailUrl = thumbnailFilename 
+      ? `${baseUrl}/api/images/${encodeURIComponent(thumbnailFilename)}`
       : null
     
-    console.log('Generated URLs:', { imageUrl, thumbnailUrl }) // Debug log
+    console.log('Upload: Generated URLs:', { imageUrl, thumbnailUrl })
+    console.log('Upload: Stored filenames:', { 
+      filename: uploadResult.filename, 
+      thumbnailFilename: uploadResult.thumbnailFilename 
+    })
 
     // If this is a profile photo, unset any existing profile photos
     if (isProfilePhoto) {
@@ -75,11 +85,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Save media record to database
+    // Save media record to database with full R2 key
     const media = await prisma.media.create({
       data: {
         userId: session.user.id,
-        filename: uploadResult.filename,  // Store the R2 key
+        filename: uploadResult.filename,  // Store the full R2 key (includes talent/ prefix if applicable)
         url: imageUrl,                    // Store the API endpoint URL
         thumbnailUrl: thumbnailUrl,        // Store the API endpoint URL for thumbnail
         type: 'PHOTO',
@@ -107,7 +117,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json(
-      { message: 'Upload failed', error: error },
+      { message: 'Upload failed', error: (error as Error).message },
       { status: 500 }
     )
   }
