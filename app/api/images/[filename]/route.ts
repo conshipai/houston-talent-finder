@@ -1,29 +1,23 @@
+// app/api/images/[filename]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getImage } from '@/lib/r2'
 import { prisma } from '@/lib/db'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { filename: string } }
-) {
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+type RouteParams = { params: { filename: string } }
+
+export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const filename = decodeURIComponent(params.filename)
     console.log('Image API: Requesting filename:', filename)
-    
-    // Get session to check if user is authenticated
+
+    // Get session if present (public+approved can be served without a session)
     const session = await getServerSession(authOptions)
-    
-    // For private buckets, we MUST have authentication
-    if (!session?.user?.id) {
-      console.log('Image API: No authenticated user')
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-    
+
     // Try to find the media record by filename
     const media = await prisma.media.findFirst({
       where: {
@@ -34,141 +28,132 @@ export async function GET(
           { thumbnailUrl: { contains: filename } },
         ],
       },
-      include: {
-        user: true
-      }
+      include: { user: true },
     })
-    
+
     if (!media) {
       console.log('Image API: Media record not found for filename:', filename)
-      
+
       // If admin, try to fetch directly from R2
-      if (session.user.role === 'ADMIN') {
+      if (session?.user?.role === 'ADMIN') {
         try {
           const imageBuffer = await getImage(filename)
-          // Convert Buffer to Uint8Array for NextResponse
           const uint8Array = new Uint8Array(imageBuffer)
           return new NextResponse(uint8Array, {
             status: 200,
             headers: {
               'Content-Type': 'image/jpeg',
               'Cache-Control': 'private, max-age=3600',
+              'Content-Disposition': 'inline',
             },
           })
         } catch (error) {
           console.error('Image API: Failed to fetch for admin:', error)
         }
       }
-      
-      return NextResponse.json(
-        { error: 'Image not found' },
-        { status: 404 }
-      )
+
+      return NextResponse.json({ error: 'Image not found' }, { status: 404 })
     }
-    
-    // Check access rights
-    let hasAccess = false
-    
-    if (
-      media.userId === session.user.id || // Own images
-      session.user.role === 'ADMIN' || // Admins see everything
-      (session.user.role === 'PRODUCER' && media.isApproved && media.isPublic) // Producers see approved public
-    ) {
-      hasAccess = true
-      console.log('Image API: Access granted for user:', session.user.id)
-    }
-    
+
+    // Access control
+    const sessionUser = session?.user
+    const isPublicMedia = !!(media.isApproved && media.isPublic)
+    const hasSessionAccess =
+      !!sessionUser &&
+      (media.userId === sessionUser.id ||
+        sessionUser.role === 'ADMIN' ||
+        (sessionUser.role === 'PRODUCER' && isPublicMedia))
+
+    const hasAccess = isPublicMedia || hasSessionAccess
+
     if (!hasAccess) {
-      console.log('Image API: Access denied for user:', session.user.id)
+      const status = sessionUser ? 403 : 401
+      console.log('Image API: Access denied for user:', sessionUser?.id ?? 'anonymous')
       return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 403 }
+        { error: status === 401 ? 'Authentication required' : 'Unauthorized' },
+        { status }
       )
     }
-    
+
+    // Build the R2 key to fetch
+    const originalKey = media.filename
+    const lastSlashIndex = originalKey.lastIndexOf('/')
+    const basePath = lastSlashIndex === -1 ? '' : originalKey.slice(0, lastSlashIndex + 1)
+
+    let r2Key = originalKey
+    if (filename.includes('/')) {
+      // Full key provided in request
+      r2Key = filename
+    } else if (filename.startsWith('thumb_')) {
+      r2Key = `${basePath}${filename}`.replace(/^\//, '')
+    } else if (!originalKey.endsWith(filename)) {
+      r2Key = basePath ? `${basePath}${filename}` : filename
+    }
+
     try {
-      // Determine the actual R2 key to fetch
-      let r2Key = media.filename
-      
-      // If the filename doesn't start with 'talent/' but the user is TALENT role, add it
-      if (media.user.role === 'TALENT' && !r2Key.startsWith('talent/')) {
-        r2Key = `talent/${r2Key}`
-      }
-      
-      // If the filename in the request contains 'thumb_', use the thumbnail filename
-      if (filename.includes('thumb_') && media.thumbnailUrl) {
-        // Extract the thumbnail filename from the thumbnailUrl
-        const thumbParts = media.thumbnailUrl.split('/')
-        const thumbFilename = thumbParts[thumbParts.length - 1]
-        if (thumbFilename) {
-          // Construct the full R2 key for the thumbnail
-          if (media.user.role === 'TALENT') {
-            const userIdPart = media.filename.split('/').pop() === media.filename ? media.userId : media.filename.split('/')[0]
-            r2Key = `talent/${userIdPart}/${decodeURIComponent(thumbFilename)}`
-          } else {
-            const userIdPart = media.filename.split('/')[0]
-            r2Key = `${userIdPart}/${decodeURIComponent(thumbFilename)}`
-          }
-        }
-      }
-      
       console.log('Image API: Fetching from R2 with key:', r2Key)
-      
       const imageBuffer = await getImage(r2Key)
       const contentType = media.mimeType || 'image/jpeg'
-      
+
+      const cacheHeader = isPublicMedia
+        ? 'public, max-age=3600, stale-while-revalidate=86400'
+        : 'private, max-age=3600'
+
       console.log('Image API: Successfully fetched image, size:', imageBuffer.length, 'bytes')
-      
-      // Convert Buffer to Uint8Array for NextResponse
+
       const uint8Array = new Uint8Array(imageBuffer)
-      
-      // Return the image with appropriate headers
       return new NextResponse(uint8Array, {
         status: 200,
         headers: {
           'Content-Type': contentType,
-          'Cache-Control': 'private, max-age=3600',
+          'Cache-Control': cacheHeader,
           'Content-Disposition': 'inline',
         },
       })
-      
     } catch (r2Error) {
       console.error('Image API: R2 Error:', r2Error)
-      
+
       // Try alternative keys if the first attempt fails
-      const alternativeKeys = [
-        media.filename,
-        `${session.user.id}/${filename}`,
-        filename,
-      ]
-      
+      const alternativeKeys = new Set<string>()
+      alternativeKeys.add(media.filename)
+      alternativeKeys.add(filename)
+
+      if (basePath) {
+        alternativeKeys.add(`${basePath}${filename}`)
+      }
+
+      if (sessionUser?.id) {
+        alternativeKeys.add(`${sessionUser.id}/${filename}`)
+      }
+
       for (const altKey of alternativeKeys) {
+        if (!altKey) continue
         try {
           console.log('Image API: Trying alternative key:', altKey)
           const imageBuffer = await getImage(altKey)
-          
-          // Convert Buffer to Uint8Array for NextResponse
           const uint8Array = new Uint8Array(imageBuffer)
-          
+
           return new NextResponse(uint8Array, {
             status: 200,
             headers: {
               'Content-Type': media.mimeType || 'image/jpeg',
-              'Cache-Control': 'private, max-age=3600',
+              'Cache-Control': isPublicMedia
+                ? 'public, max-age=3600, stale-while-revalidate=86400'
+                : 'private, max-age=3600',
+              'Content-Disposition': 'inline',
             },
           })
-        } catch (altError) {
+        } catch (_altError) {
           console.log('Image API: Alternative key failed:', altKey)
           continue
         }
       }
-      
+
       return NextResponse.json(
         { error: 'Failed to retrieve image', details: (r2Error as Error).message },
         { status: 500 }
       )
     }
-    
   } catch (error) {
     console.error('Image API Error:', error)
     return NextResponse.json(
