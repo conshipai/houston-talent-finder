@@ -90,6 +90,11 @@ export async function GET(
       // Determine the actual R2 key to fetch
       let r2Key = media.filename
       
+      // If the filename doesn't start with 'talent/' but the user is TALENT role, add it
+      if (media.user.role === 'TALENT' && !r2Key.startsWith('talent/')) {
+        r2Key = `talent/${r2Key}`
+      }
+      
       // If the filename in the request contains 'thumb_', use the thumbnail filename
       if (filename.includes('thumb_') && media.thumbnailUrl) {
         // Extract the thumbnail filename from the thumbnailUrl
@@ -97,8 +102,13 @@ export async function GET(
         const thumbFilename = thumbParts[thumbParts.length - 1]
         if (thumbFilename) {
           // Construct the full R2 key for the thumbnail
-          const userIdPart = media.filename.split('/')[0]
-          r2Key = `${userIdPart}/${decodeURIComponent(thumbFilename)}`
+          if (media.user.role === 'TALENT') {
+            const userIdPart = media.filename.split('/').pop() === media.filename ? media.userId : media.filename.split('/')[0]
+            r2Key = `talent/${userIdPart}/${decodeURIComponent(thumbFilename)}`
+          } else {
+            const userIdPart = media.filename.split('/')[0]
+            r2Key = `${userIdPart}/${decodeURIComponent(thumbFilename)}`
+          }
         }
       }
       
