@@ -144,7 +144,8 @@ export async function HEAD(
       where: {
         OR: [
           { filename },
-          { thumbnailFilename: filename },
+          { filename: { contains: filename } },
+          { thumbnailUrl: { contains: filename } },
         ],
       },
     })
