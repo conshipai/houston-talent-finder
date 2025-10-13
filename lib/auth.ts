@@ -8,6 +8,19 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  // ADD THIS COOKIES CONFIGURATION
+  cookies: {
+    sessionToken: {
+      name: `${process.env.NODE_ENV === 'production' ? '__Secure-' : ''}next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+      },
+    },
   },
   pages: {
     signIn: "/login",
@@ -61,14 +74,14 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async session({ token, session }: any) {
-  if (token) {
-    session.user.id = token.id as string
-    session.user.username = token.username as string
-    session.user.email = token.email as string
-    session.user.role = token.role as string
-  }
-  return session
-},
+      if (token) {
+        session.user.id = token.id as string
+        session.user.username = token.username as string
+        session.user.email = token.email as string
+        session.user.role = token.role as string
+      }
+      return session
+    },
     async jwt({ token, user }: any) {
       const dbUser = await prisma.user.findUnique({
         where: {
@@ -90,5 +103,7 @@ export const authOptions: NextAuthOptions = {
         role: dbUser.role,
       }
     }
-  }
+  },
+  // ADD THIS
+  debug: process.env.NODE_ENV === 'development',
 }
