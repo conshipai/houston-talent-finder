@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
 import { prisma } from '@/lib/db'
+import { buildImageRequestPath } from '@/lib/media'
 
 export async function GET(request: NextRequest) {
   const authError = await requireAdmin()
