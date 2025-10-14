@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { uploadImage, validateImage } from '@/lib/r2'
+import { buildImageRequestPath } from '@/lib/media'
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,18 +55,14 @@ export async function POST(request: NextRequest) {
     
     // For private buckets, we need to use the API endpoint to serve images
     // Store the full R2 key in the database
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    
-    // Extract just the filename (without user ID path) for the URL
-    const imageFilename = uploadResult.filename.split('/').pop()!
-    const thumbnailFilename = uploadResult.thumbnailFilename ? uploadResult.thumbnailFilename.split('/').pop()! : null
-    
-    // Create URLs that will go through our API endpoint
-    const imageUrl = `${baseUrl}/api/images/${encodeURIComponent(imageFilename)}`
-    const thumbnailUrl = thumbnailFilename 
-      ? `${baseUrl}/api/images/${encodeURIComponent(thumbnailFilename)}`
-      : null
-    
+       // Create URLs that will go through our API endpoint (relative so they work on any origin)
+    const imageUrl = buildImageRequestPath(uploadResult.filename)
+    if (!imageUrl) {
+      throw new Error('Failed to generate image URL')
+    }
+
+    const thumbnailUrl = buildImageRequestPath(uploadResult.thumbnailFilename)
+
     console.log('Upload: Generated URLs:', { imageUrl, thumbnailUrl })
     console.log('Upload: Stored filenames:', { 
       filename: uploadResult.filename, 
@@ -143,8 +140,23 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // The URLs in the database should already point to our API endpoint
-    return NextResponse.json({ media })
+  const normalizedMedia = media.map(item => {
+      const normalizedUrl =
+        buildImageRequestPath(item.url) ??
+        buildImageRequestPath(item.filename) ??
+        item.url
+
+      const normalizedThumbnail =
+        buildImageRequestPath(item.thumbnailUrl) ?? item.thumbnailUrl
+
+      return {
+        ...item,
+        url: normalizedUrl,
+        thumbnailUrl: normalizedThumbnail,
+      }
+    })
+
+    return NextResponse.json({ media: normalizedMedia })
 
   } catch (error) {
     console.error('Fetch media error:', error)
