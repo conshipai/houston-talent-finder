@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     }))
     
     return NextResponse.json({
-      talents: normalizedTalent,
+      talents: normalizedTalents,
       total,
       page,
       totalPages: Math.ceil(total / limit)
