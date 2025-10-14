@@ -4,10 +4,10 @@ import { prisma } from '@/lib/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Link from 'next/link'
-import { 
+import {
   MapPin, Calendar, Ruler, Eye, Palette,
-  Instagram, Globe, ArrowLeft, MessageSquare,
-  CheckCircle, AlertCircle, Clock, Lock
+  ArrowLeft, MessageSquare, CheckCircle,
+  AlertCircle, Clock, Lock
 } from 'lucide-react'
 import { buildImageRequestPath } from '@/lib/media'
 
@@ -62,6 +62,23 @@ export default async function TalentProfilePage({ params }: PageProps) {
   const profilePhoto = visibleMedia.find((m: any) => m.isProfilePhoto)
   const galleryPhotos = visibleMedia.filter((m: any) => !m.isProfilePhoto)
   const isVerified = user.profile?.verified
+
+  const profile = user.profile
+  const location = [profile?.city, profile?.state].filter(Boolean).join(', ')
+  const formatList = (values?: string[] | null) =>
+    values && values.length > 0 ? values.join(', ') : null
+  const formatLink = (url?: string | null) => {
+    if (!url) return null
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url
+    }
+    return `https://${url}`
+  }
+  const customLinks = Array.isArray(profile?.customLinks)
+    ? (profile?.customLinks as { platform?: string; url?: string }[]).filter(
+        (link) => link?.url
+      )
+    : []
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
@@ -141,6 +158,362 @@ export default async function TalentProfilePage({ params }: PageProps) {
                 )}
               </div>
             </div>
+            
+            {(profile?.stageName ||
+              profile?.bio ||
+              location ||
+              profile?.age ||
+              profile?.height ||
+              profile?.weight ||
+              profile?.measurements ||
+              profile?.hairColor ||
+              profile?.eyeColor ||
+              profile?.ethnicity ||
+              profile?.bodyType ||
+              profile?.bustSize ||
+              profile?.cupSize ||
+              profile?.experience?.length ||
+              profile?.jobTypes?.length ||
+              profile?.categories?.length ||
+              profile?.specialties?.length ||
+              profile?.availability ||
+              profile?.willingToTravel ||
+              profile?.sexualOrientation ||
+              profile?.instagram ||
+              profile?.twitter ||
+              profile?.website ||
+              profile?.onlyfans ||
+              profile?.pornhubProfile ||
+              profile?.xhamsterProfile ||
+              profile?.redtubeProfile ||
+              profile?.phone ||
+              customLinks.length) && (
+              <div className="mt-6 space-y-6">
+                <div className="bg-gray-800 rounded-lg p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-400">Stage Name</p>
+                      <p className="text-xl font-semibold text-white">
+                        {profile?.stageName || user.username}
+                      </p>
+                    </div>
+                    {isVerified && (
+                      <span className="inline-flex items-center space-x-1 bg-green-600/20 text-green-400 px-3 py-1 rounded-full text-xs font-semibold">
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Verified</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center text-sm text-gray-300 space-x-2">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <span>{location || 'Location not provided'}</span>
+                  </div>
+
+                  <div className="flex items-center text-sm text-gray-300 space-x-2">
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                    <span>
+                      Joined {new Date(user.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  {profile?.bio && (
+                    <div>
+                      <p className="text-sm text-gray-400 mb-2">Bio</p>
+                      <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">
+                        {profile.bio}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {(profile?.age ||
+                  profile?.height ||
+                  profile?.weight ||
+                  profile?.measurements ||
+                  profile?.hairColor ||
+                  profile?.eyeColor ||
+                  profile?.ethnicity ||
+                  profile?.bodyType ||
+                  profile?.bustSize ||
+                  profile?.cupSize ||
+                  profile?.tattoos ||
+                  profile?.piercings) && (
+                  <div className="bg-gray-800 rounded-lg p-6">
+                    <h3 className="text-white font-semibold mb-4 flex items-center space-x-2">
+                      <Ruler className="w-4 h-4 text-gray-400" />
+                      <span>Physical Attributes</span>
+                    </h3>
+                    <dl className="grid grid-cols-1 gap-3 text-sm text-gray-300">
+                      {profile?.age && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Age</dt>
+                          <dd>{profile.age}</dd>
+                        </div>
+                      )}
+                      {profile?.height && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Height</dt>
+                          <dd>{profile.height}</dd>
+                        </div>
+                      )}
+                      {profile?.weight && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Weight</dt>
+                          <dd>{profile.weight}</dd>
+                        </div>
+                      )}
+                      {profile?.measurements && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Measurements</dt>
+                          <dd>{profile.measurements}</dd>
+                        </div>
+                      )}
+                      {profile?.hairColor && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Hair Color</dt>
+                          <dd>{profile.hairColor}</dd>
+                        </div>
+                      )}
+                      {profile?.eyeColor && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Eye Color</dt>
+                          <dd>{profile.eyeColor}</dd>
+                        </div>
+                      )}
+                      {profile?.ethnicity && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Ethnicity</dt>
+                          <dd>{profile.ethnicity}</dd>
+                        </div>
+                      )}
+                      {profile?.bodyType && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Body Type</dt>
+                          <dd>{profile.bodyType}</dd>
+                        </div>
+                      )}
+                      {(profile?.bustSize || profile?.cupSize) && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Bust / Cup</dt>
+                          <dd>{[profile?.bustSize, profile?.cupSize].filter(Boolean).join(' ')}</dd>
+                        </div>
+                      )}
+                      {profile?.tattoos !== undefined && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Tattoos</dt>
+                          <dd>{profile.tattoos ? 'Yes' : 'No'}</dd>
+                        </div>
+                      )}
+                      {profile?.piercings !== undefined && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Piercings</dt>
+                          <dd>{profile.piercings ? 'Yes' : 'No'}</dd>
+                        </div>
+                      )}
+                    </dl>
+                    {(profile?.tattoosDescription || profile?.piercingsDescription) && (
+                      <div className="mt-3 text-xs text-gray-400 space-y-2">
+                        {profile?.tattoosDescription && (
+                          <p>Tattoos: {profile.tattoosDescription}</p>
+                        )}
+                        {profile?.piercingsDescription && (
+                          <p>Piercings: {profile.piercingsDescription}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(profile?.sexualOrientation ||
+                  formatList(profile?.experience) ||
+                  formatList(profile?.jobTypes) ||
+                  formatList(profile?.categories) ||
+                  formatList(profile?.specialties) ||
+                  profile?.availability ||
+                  profile?.willingToTravel) && (
+                  <div className="bg-gray-800 rounded-lg p-6">
+                    <h3 className="text-white font-semibold mb-4 flex items-center space-x-2">
+                      <Palette className="w-4 h-4 text-gray-400" />
+                      <span>Professional Details</span>
+                    </h3>
+                    <dl className="space-y-3 text-sm text-gray-300">
+                      {profile?.sexualOrientation && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Orientation</dt>
+                          <dd>{profile.sexualOrientation}</dd>
+                        </div>
+                      )}
+                      {formatList(profile?.experience) && (
+                        <div>
+                          <dt className="text-gray-400">Experience</dt>
+                          <dd>{formatList(profile?.experience)}</dd>
+                        </div>
+                      )}
+                      {formatList(profile?.jobTypes) && (
+                        <div>
+                          <dt className="text-gray-400">Job Types</dt>
+                          <dd>{formatList(profile?.jobTypes)}</dd>
+                        </div>
+                      )}
+                      {formatList(profile?.categories) && (
+                        <div>
+                          <dt className="text-gray-400">Categories</dt>
+                          <dd>{formatList(profile?.categories)}</dd>
+                        </div>
+                      )}
+                      {formatList(profile?.specialties) && (
+                        <div>
+                          <dt className="text-gray-400">Specialties</dt>
+                          <dd>{formatList(profile?.specialties)}</dd>
+                        </div>
+                      )}
+                      {profile?.availability && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Availability</dt>
+                          <dd>{profile.availability}</dd>
+                        </div>
+                      )}
+                      {profile?.willingToTravel !== undefined && (
+                        <div className="flex justify-between">
+                          <dt className="text-gray-400">Willing to Travel</dt>
+                          <dd>{profile.willingToTravel ? 'Yes' : 'No'}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+                )}
+
+                {(profile?.phone ||
+                  profile?.instagram ||
+                  profile?.twitter ||
+                  profile?.website ||
+                  profile?.onlyfans ||
+                  profile?.pornhubProfile ||
+                  profile?.xhamsterProfile ||
+                  profile?.redtubeProfile ||
+                  customLinks.length) && (
+                  <div className="bg-gray-800 rounded-lg p-6">
+                    <h3 className="text-white font-semibold mb-4 flex items-center space-x-2">
+                      <Eye className="w-4 h-4 text-gray-400" />
+                      <span>Contact & Social</span>
+                    </h3>
+                    <ul className="space-y-3 text-sm text-gray-300">
+                      {profile?.phone && (
+                        <li className="flex justify-between">
+                          <span className="text-gray-400">Phone</span>
+                          <span>{profile.phone}</span>
+                        </li>
+                      )}
+                      {profile?.instagram && formatLink(profile.instagram) && (
+                        <li className="flex justify-between items-center">
+                          <span className="text-gray-400">Instagram</span>
+                          <a
+                            href={formatLink(profile.instagram)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            {profile.instagram}
+                          </a>
+                        </li>
+                      )}
+                      {profile?.twitter && formatLink(profile.twitter) && (
+                        <li className="flex justify-between items-center">
+                          <span className="text-gray-400">Twitter</span>
+                          <a
+                            href={formatLink(profile.twitter)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            {profile.twitter}
+                          </a>
+                        </li>
+                      )}
+                      {profile?.website && formatLink(profile.website) && (
+                        <li className="flex justify-between items-center">
+                          <span className="text-gray-400">Website</span>
+                          <a
+                            href={formatLink(profile.website)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            {profile.website}
+                          </a>
+                        </li>
+                      )}
+                      {profile?.onlyfans && formatLink(profile.onlyfans) && (
+                        <li className="flex justify-between items-center">
+                          <span className="text-gray-400">OnlyFans</span>
+                          <a
+                            href={formatLink(profile.onlyfans)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            {profile.onlyfans}
+                          </a>
+                        </li>
+                      )}
+                      {profile?.pornhubProfile && formatLink(profile.pornhubProfile) && (
+                        <li className="flex justify-between items-center">
+                          <span className="text-gray-400">Pornhub</span>
+                          <a
+                            href={formatLink(profile.pornhubProfile)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            {profile.pornhubProfile}
+                          </a>
+                        </li>
+                      )}
+                      {profile?.xhamsterProfile && formatLink(profile.xhamsterProfile) && (
+                        <li className="flex justify-between items-center">
+                          <span className="text-gray-400">XHamster</span>
+                          <a
+                            href={formatLink(profile.xhamsterProfile)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            {profile.xhamsterProfile}
+                          </a>
+                        </li>
+                      )}
+                      {profile?.redtubeProfile && formatLink(profile.redtubeProfile) && (
+                        <li className="flex justify-between items-center">
+                          <span className="text-gray-400">RedTube</span>
+                          <a
+                            href={formatLink(profile.redtubeProfile)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            {profile.redtubeProfile}
+                          </a>
+                        </li>
+                      )}
+                      {customLinks.map((link, index) => (
+                        <li key={index} className="flex justify-between items-center">
+                          <span className="text-gray-400">{link.platform || 'Link'}</span>
+                          <a
+                            href={formatLink(link.url)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            {link.url}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Gallery */}
