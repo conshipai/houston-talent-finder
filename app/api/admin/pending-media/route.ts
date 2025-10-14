@@ -28,8 +28,11 @@ export async function GET(request: NextRequest) {
 
     const formattedMedia = media.map(m => ({
       id: m.id,
-      url: m.url,
-      thumbnailUrl: m.thumbnailUrl,
+      url:
+        buildImageRequestPath(m.url) ??
+        buildImageRequestPath(m.filename) ??
+        m.url,
+      thumbnailUrl: buildImageRequestPath(m.thumbnailUrl) ?? m.thumbnailUrl,
       username: m.user.username,
       userId: m.user.id,
       uploadedAt: m.createdAt,
