@@ -5,10 +5,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Link from 'next/link'
 import { 
-  MapPin, Calendar, Ruler, Eye, Palette, 
+  MapPin, Calendar, Ruler, Eye, Palette,
   Instagram, Globe, ArrowLeft, MessageSquare,
   CheckCircle, AlertCircle, Clock, Lock
 } from 'lucide-react'
+import { buildImageRequestPath } from '@/lib/media'
 
 interface PageProps {
   params: { username: string }
@@ -45,9 +46,18 @@ export default async function TalentProfilePage({ params }: PageProps) {
   const isAdmin = session?.user?.role === 'ADMIN'
   const canSeeAllMedia = isOwnProfile || isAdmin
 
+  const normalizedMedia = user.media.map((media: any) => ({
+    ...media,
+    url:
+      buildImageRequestPath(media.url) ??
+      buildImageRequestPath(media.filename) ??
+      media.url,
+    thumbnailUrl: buildImageRequestPath(media.thumbnailUrl) ?? media.thumbnailUrl,
+  }))
+  
   const visibleMedia = canSeeAllMedia
-    ? user.media
-    : user.media.filter((m: any) => m.isApproved && m.isPublic)
+     ? normalizedMedia
+    : normalizedMedia.filter((m: any) => m.isApproved && m.isPublic)
 
   const profilePhoto = visibleMedia.find((m: any) => m.isProfilePhoto)
   const galleryPhotos = visibleMedia.filter((m: any) => !m.isProfilePhoto)
