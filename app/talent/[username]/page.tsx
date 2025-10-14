@@ -4,18 +4,10 @@ import { prisma } from '@/lib/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Link from 'next/link'
-import {
-  MapPin,
-  Ruler,
-  Palette,
-  Instagram,
-  Globe,
-  ArrowLeft,
-  MessageSquare,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  Lock
+import { 
+  MapPin, Calendar, Ruler, Eye, Palette, 
+  Instagram, Globe, ArrowLeft, MessageSquare,
+  CheckCircle, AlertCircle, Clock, Lock
 } from 'lucide-react'
 
 interface PageProps {
@@ -26,9 +18,12 @@ export default async function TalentProfilePage({ params }: PageProps) {
   // Get current session to check if user is viewing their own profile
   const session = await getServerSession(authOptions)
 
-  const user = await prisma.user.findUnique({
+  const user = await prisma.user.findFirst({
     where: {
-      username: params.username.toLowerCase()
+      username: {
+        equals: params.username,
+        mode: 'insensitive'
+      }
     },
     include: {
       profile: true,
@@ -44,13 +39,13 @@ export default async function TalentProfilePage({ params }: PageProps) {
     notFound()
   }
 
-  // Check if this is the user's own profile (or admin viewing)
+  // Check if this is the user's own profile
   const sessionUsername = session?.user?.username?.toLowerCase()
   const isOwnProfile = session?.user?.id === user.id || sessionUsername === user.username.toLowerCase()
   const isAdmin = session?.user?.role === 'ADMIN'
+  const canSeeAllMedia = isOwnProfile || isAdmin
 
-  // Decide which media to show
-  const visibleMedia = (isOwnProfile || isAdmin)
+  const visibleMedia = canSeeAllMedia
     ? user.media
     : user.media.filter((m: any) => m.isApproved && m.isPublic)
 
@@ -96,14 +91,14 @@ export default async function TalentProfilePage({ params }: PageProps) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Show notice if viewing own profile with pending content */}
-        {isOwnProfile && visibleMedia.some((m: any) => !m.isApproved) && (
+        {canSeeAllMedia && visibleMedia.some((m: any) => !m.isApproved) && (
           <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-600 rounded-lg">
             <div className="flex items-start">
               <AlertCircle className="w-5 h-5 text-yellow-500 mr-2 mt-0.5" />
               <div>
                 <p className="text-yellow-200 font-medium">Some photos are pending approval</p>
                 <p className="text-yellow-200/80 text-sm mt-1">
-                  Photos marked with a clock icon are waiting for admin approval and are only visible to you.
+                  Photos marked with a clock icon are waiting for admin approval and are only visible to you and site administrators.
                 </p>
               </div>
             </div>
@@ -123,18 +118,11 @@ export default async function TalentProfilePage({ params }: PageProps) {
                       alt={user.profile?.stageName || user.username}
                       className="w-full h-full object-cover"
                     />
-                    {(isOwnProfile || isAdmin) && (
-                      <div className="absolute top-3 left-3 flex gap-2">
-                        {!profilePhoto.isApproved && (
-                          <span className="inline-flex items-center px-2 py-1 rounded bg-yellow-500/20 text-yellow-200 text-xs">
-                            <Clock className="w-3 h-3 mr-1" /> Pending
-                          </span>
-                        )}
-                        {!profilePhoto.isPublic && (
-                          <span className="inline-flex items-center px-2 py-1 rounded bg-gray-900/60 text-gray-100 text-xs">
-                            <Lock className="w-3 h-3 mr-1" /> Private
-                          </span>
-                        )}
+                    {/* Show approval status if own profile */}
+                    {isOwnProfile && !profilePhoto.isApproved && (
+                      <div className="absolute top-2 right-2 bg-yellow-600 text-white px-2 py-1 rounded flex items-center">
+                        <Clock className="w-3 h-3 mr-1" />
+                        <span className="text-xs">Pending</span>
                       </div>
                     )}
                   </>
@@ -142,128 +130,63 @@ export default async function TalentProfilePage({ params }: PageProps) {
                   <div className="w-full h-full flex items-center justify-center text-gray-400">No profile photo</div>
                 )}
               </div>
-
-              {/* Basic Info */}
-              <div className="p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h1 className="text-xl font-semibold text-white flex items-center gap-2">
-                    {user.profile?.stageName || user.username}
-                    {isVerified && <CheckCircle className="w-4 h-4 text-emerald-400" />}
-                  </h1>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  {user.profile?.city && user.profile?.state && (
-                    <div className="flex items-center gap-2 text-gray-300">
-                      <MapPin className="w-4 h-4" />
-                      <span>
-                        {user.profile.city}, {user.profile.state}
-                      </span>
-                    </div>
-                  )}
-                  {user.profile?.height && (
-                    <div className="flex items-center gap-2 text-gray-300">
-                      <Ruler className="w-4 h-4" />
-                      <span>
-                        {user.profile.height}
-                        {user.profile.weight ? ` • ${user.profile.weight}` : ''}
-                      </span>
-                    </div>
-                  )}
-                  {(user.profile?.hairColor || user.profile?.eyeColor) && (
-                    <div className="flex items-center gap-2 text-gray-300">
-                      <Palette className="w-4 h-4" />
-                      <span>
-                        {user.profile?.hairColor ? `Hair: ${user.profile.hairColor}` : ''}
-                        {user.profile?.hairColor && user.profile?.eyeColor ? ' • ' : ''}
-                        {user.profile?.eyeColor ? `Eyes: ${user.profile.eyeColor}` : ''}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Links */}
-                {(user.profile?.instagram || user.profile?.website) && (
-                  <div className="pt-3 border-t border-gray-700/60 flex gap-3">
-                    {user.profile?.instagram && (
-                      <a
-                        href={user.profile.instagram.startsWith('http')
-                          ? user.profile.instagram
-                          : `https://instagram.com/${user.profile.instagram.replace('@', '')}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-pink-300 hover:text-pink-200"
-                      >
-                        <Instagram className="w-4 h-4" />
-                        <span>Instagram</span>
-                      </a>
-                    )}
-                    {user.profile?.website && (
-                      <a
-                        href={user.profile.website}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200"
-                      >
-                        <Globe className="w-4 h-4" />
-                        <span>Website</span>
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
             </div>
-
-            {/* About / Bio */}
-            {(user.profile?.bio || isOwnProfile) && (
-              <div className="bg-gray-800 rounded-lg mt-6 p-5">
-                <h2 className="text-white font-semibold mb-2">About</h2>
-                {user.profile?.bio ? (
-                  <p className="text-gray-300 whitespace-pre-line">{user.profile.bio}</p>
-                ) : (
-                  isOwnProfile && (
-                    <p className="text-gray-400 text-sm">
-                      Add a short bio in your profile so people can learn more about you.
-                    </p>
-                  )
-                )}
-              </div>
-            )}
           </div>
 
           {/* Gallery */}
           <div className="lg:col-span-2">
-            <div className="bg-gray-800 rounded-lg p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-white font-semibold">Gallery</h2>
-                {(isOwnProfile || isAdmin) && (
-                  <div className="text-xs text-gray-400 flex items-center gap-3">
-                    <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> Pending</span>
-                    <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3" /> Private</span>
-                  </div>
-                )}
-              </div>
-
+            <div className="bg-gray-800 rounded-lg p-6">
               {galleryPhotos.length === 0 ? (
-                <div className="text-gray-400 text-sm">No photos to display.</div>
+                <div className="text-center text-gray-400">
+                  <AlertCircle className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">No portfolio photos yet</p>
+                  {isOwnProfile && (
+                    <Link
+                      href="/media/upload"
+                      className="inline-block mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
+                    >
+                      Upload Photos
+                    </Link>
+                  )}
+                </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {galleryPhotos.map((m: any) => (
-                    <div key={m.id} className="relative group rounded-lg overflow-hidden bg-gray-700">
-                      <img src={m.url} alt={user.profile?.stageName || user.username} className="w-full h-48 object-cover" />
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {galleryPhotos.map((photo: any) => (
+                    <div
+                      key={photo.id}
+                      className="aspect-square bg-gray-700 rounded-lg overflow-hidden relative group"
+                    >
+                      <img
+                        src={photo.thumbnailUrl || photo.url}
+                        alt={photo.title || 'Portfolio photo'}
+                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                      />
 
-                      {(isOwnProfile || isAdmin) && (
-                        <div className="absolute top-2 left-2 flex gap-2">
-                          {!m.isApproved && (
-                            <span className="inline-flex items-center px-2 py-1 rounded bg-yellow-500/20 text-yellow-200 text-[10px]">
-                              <Clock className="w-3 h-3 mr-1" /> Pending
-                            </span>
+                      {/* Show status badges for own profile */}
+                      {canSeeAllMedia && (
+                        <div className="absolute top-2 left-2 flex flex-col gap-2">
+                          {!photo.isApproved && (
+                            <div className="bg-yellow-600 text-white px-2 py-1 rounded text-xs flex items-center">
+                              <Clock className="w-3 h-3 mr-1" />
+                              Pending
+                            </div>
                           )}
-                          {!m.isPublic && (
-                            <span className="inline-flex items-center px-2 py-1 rounded bg-gray-900/60 text-gray-100 text-[10px]">
-                              <Lock className="w-3 h-3 mr-1" /> Private
-                            </span>
+                          {!photo.isPublic && (
+                            <div className="bg-gray-600 text-white px-2 py-1 rounded text-xs flex items-center">
+                              <Lock className="w-3 h-3 mr-1" />
+                              Private
+                            </div>
                           )}
+                          {photo.isExplicit && (
+                            <div className="bg-red-600 text-white px-2 py-1 rounded text-xs">18+</div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Show approved badge for others */}
+                      {!canSeeAllMedia && photo.isApproved && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle className="w-5 h-5 text-green-500 bg-gray-800 rounded-full" />
                         </div>
                       )}
                     </div>
