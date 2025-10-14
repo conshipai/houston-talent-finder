@@ -1,6 +1,7 @@
 // app/api/talents/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { buildImageRequestPath } from '@/lib/media'
 
 export async function GET(request: NextRequest) {
   try {
@@ -93,9 +94,17 @@ export async function GET(request: NextRequest) {
         }
       })
     ])
-
+    const normalizedTalents = talents.map(talent => ({
+      ...talent,
+      media: talent.media.map(media => ({
+        ...media,
+        url: buildImageRequestPath(media.url) ?? media.url,
+        thumbnailUrl: buildImageRequestPath(media.thumbnailUrl) ?? media.thumbnailUrl,
+      })),
+    }))
+    
     return NextResponse.json({
-      talents,
+    talents: normalizedTalent
       total,
       page,
       totalPages: Math.ceil(total / limit)
@@ -226,8 +235,17 @@ export async function POST(request: NextRequest) {
       prisma.user.count({ where })
     ])
 
+        const normalizedTalents = talents.map(talent => ({
+      ...talent,
+      media: talent.media.map(media => ({
+        ...media,
+        url: buildImageRequestPath(media.url) ?? media.url,
+        thumbnailUrl: buildImageRequestPath(media.thumbnailUrl) ?? media.thumbnailUrl,
+      })),
+    }))
+
     return NextResponse.json({
-      talents,
+      talents: normalizedTalents,
       total,
       page,
       totalPages: Math.ceil(total / limit),
