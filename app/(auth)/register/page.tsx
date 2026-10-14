@@ -103,14 +103,15 @@ function RegisterContent() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Email Address
+              Email Address <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
               name="email"
               value={formData.email}
               onChange={handleInputChange}
-              autoComplete="new-password"
+              required
+              autoComplete="email"
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
               placeholder="your@email.com"
             />

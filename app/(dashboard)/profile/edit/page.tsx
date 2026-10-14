@@ -4,6 +4,11 @@ import { useState, useEffect, ChangeEvent, FormEvent } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Save, AlertCircle, CheckCircle } from 'lucide-react'
+import { missingProfileFields, REQUIRED_PROFILE_FIELDS } from '@/lib/profile-required'
+
+function RequiredMark() {
+  return <span className="text-red-500"> *</span>
+}
 
 interface FormData {
   stageName: string
@@ -30,6 +35,7 @@ interface FormData {
   availability: string
   experience: string[]
   jobTypes: string[]
+  email: string
   phone: string
   instagram: string
   twitter: string
@@ -48,6 +54,7 @@ export default function ProfileEditPage() {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const [missing, setMissing] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState<'basic' | 'physical' | 'professional' | 'links'>('basic')
 
   const [formData, setFormData] = useState<FormData>({
@@ -75,6 +82,7 @@ export default function ProfileEditPage() {
     availability: '',
     experience: [],
     jobTypes: [],
+    email: '',
     phone: '',
     instagram: '',
     twitter: '',
@@ -137,14 +145,17 @@ export default function ProfileEditPage() {
       const response = await fetch('/api/profile')
       if (response.ok) {
         const data = await response.json()
-        if (data?.profile) {
-          setFormData(prev => ({
-            ...prev,
-            ...data.profile,
-            jobTypes: data.profile.jobTypes || [],
-            experience: data.profile.experience || [],
-          }))
-        }
+        const profile = Object.fromEntries(
+          Object.entries(data?.profile ?? {}).filter(([, v]) => v !== null)
+        )
+        setFormData(prev => ({
+          ...prev,
+          ...profile,
+          age: profile.age != null ? String(profile.age) : prev.age,
+          jobTypes: data?.profile?.jobTypes || [],
+          experience: data?.profile?.experience || [],
+          email: data?.email || '',
+        }))
       } else {
         // Avoid throwing if server sent HTML/text
         try {
@@ -173,6 +184,7 @@ export default function ProfileEditPage() {
       ...prev,
       [name]: type === 'checkbox' ? !!checked : value,
     }))
+    setMissing(prev => prev.filter(n => n !== name))
   }
 
   const handleJobTypeToggle = (jobType: string) => {
@@ -182,13 +194,24 @@ export default function ProfileEditPage() {
         ? prev.jobTypes.filter(j => j !== jobType)
         : [...prev.jobTypes, jobType],
     }))
+    setMissing(prev => prev.filter(n => n !== 'jobTypes'))
   }
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setSaving(true)
     setError('')
     setSuccess(false)
+
+    const missingFields = missingProfileFields({ ...formData })
+    if (missingFields.length > 0) {
+      setMissing(missingFields.map(f => f.name))
+      setActiveTab(missingFields[0].tab)
+      setError(`Please fill in the required fields: ${missingFields.map(f => f.label).join(', ')}`)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    setSaving(true)
 
     try {
       const response = await fetch('/api/profile', {
@@ -204,6 +227,7 @@ export default function ProfileEditPage() {
         try {
           const data = await response.json()
           setError(data?.message || 'Failed to update profile')
+          if (Array.isArray(data?.missing)) setMissing(data.missing)
         } catch {
           setError('Failed to update profile')
         }
@@ -214,6 +238,15 @@ export default function ProfileEditPage() {
       setSaving(false)
     }
   }
+
+  const tabHasMissing = (tab: string) =>
+    REQUIRED_PROFILE_FIELDS.some(f => f.tab === tab && missing.includes(f.name))
+
+  // Red border on required fields that were left empty
+  const fieldClass = (name: string) =>
+    `w-full px-4 py-2 bg-gray-700 border rounded-lg text-white ${
+      missing.includes(name) ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-600'
+    }`
 
   if (status === 'loading' || loading) {
     return (
@@ -272,6 +305,7 @@ export default function ProfileEditPage() {
             className={`pb-3 px-1 ${activeTab === 'basic' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'}`}
           >
             Basic Info
+            {tabHasMissing('basic') && <span className="ml-1 text-red-500">●</span>}
           </button>
           <button
             type="button"
@@ -279,6 +313,7 @@ export default function ProfileEditPage() {
             className={`pb-3 px-1 ${activeTab === 'physical' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'}`}
           >
             Physical Attributes
+            {tabHasMissing('physical') && <span className="ml-1 text-red-500">●</span>}
           </button>
           <button
             type="button"
@@ -286,6 +321,7 @@ export default function ProfileEditPage() {
             className={`pb-3 px-1 ${activeTab === 'professional' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'}`}
           >
             Professional
+            {tabHasMissing('professional') && <span className="ml-1 text-red-500">●</span>}
           </button>
           <button
             type="button"
@@ -297,6 +333,10 @@ export default function ProfileEditPage() {
         </div>
 
         {/* Form */}
+        <p className="text-sm text-gray-400 mb-4">
+          Fields marked <span className="text-red-500">*</span> are required before you can save.
+        </p>
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info Tab */}
           {activeTab === 'basic' && (
@@ -306,21 +346,21 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Stage/Professional Name
+                    Stage/Professional Name<RequiredMark />
                   </label>
                   <input
                     type="text"
                     name="stageName"
                     value={formData.stageName}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                    className={fieldClass('stageName')}
                     placeholder="Your professional name"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Age
+                    Age<RequiredMark />
                   </label>
                   <input
                     type="number"
@@ -328,21 +368,54 @@ export default function ProfileEditPage() {
                     value={formData.age}
                     onChange={handleInputChange}
                     min={18}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                    className={fieldClass('age')}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Email<RequiredMark />
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    autoComplete="email"
+                    className={fieldClass('email')}
+                    placeholder="you@example.com"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">This is also the email you sign in with</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Phone Number<RequiredMark />
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    autoComplete="tel"
+                    className={fieldClass('phone')}
+                    placeholder="(713) 555-0123"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Bio / About Me
+                  Bio / About Me<RequiredMark />
                 </label>
                 <textarea
                   name="bio"
                   value={formData.bio}
                   onChange={handleInputChange}
                   rows={4}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  className={fieldClass('bio')}
                   placeholder="Tell producers about yourself..."
                 />
               </div>
@@ -350,40 +423,40 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    City
+                    City<RequiredMark />
                   </label>
                     <input
                       type="text"
                       name="city"
                       value={formData.city}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                      className={fieldClass('city')}
                     />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    State
+                    State<RequiredMark />
                   </label>
                   <input
                     type="text"
                     name="state"
                     value={formData.state}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                    className={fieldClass('state')}
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Sexual Orientation
+                  Sexual Orientation<RequiredMark />
                 </label>
                 <select
                   name="sexualOrientation"
                   value={formData.sexualOrientation}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  className={fieldClass('sexualOrientation')}
                 >
                   <option value="">Select orientation</option>
                   {orientationOptions.map(opt => (
@@ -402,13 +475,13 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Body Type
+                    Body Type<RequiredMark />
                   </label>
                   <select
                     name="bodyType"
                     value={formData.bodyType}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                    className={fieldClass('bodyType')}
                   >
                     <option value="">Select body type</option>
                     {bodyTypeOptions.map(type => (
@@ -419,7 +492,7 @@ export default function ProfileEditPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Height
+                    Height<RequiredMark />
                   </label>
                   <input
                     type="text"
@@ -427,7 +500,7 @@ export default function ProfileEditPage() {
                     value={formData.height}
                     onChange={handleInputChange}
                     placeholder={'e.g., 5\'7"'}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                    className={fieldClass('height')}
                   />
                 </div>
               </div>
@@ -435,13 +508,13 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Hair Color
+                    Hair Color<RequiredMark />
                   </label>
                   <select
                     name="hairColor"
                     value={formData.hairColor}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                    className={fieldClass('hairColor')}
                   >
                     <option value="">Select hair color</option>
                     {hairColorOptions.map(color => (
@@ -452,13 +525,13 @@ export default function ProfileEditPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Eye Color
+                    Eye Color<RequiredMark />
                   </label>
                   <select
                     name="eyeColor"
                     value={formData.eyeColor}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                    className={fieldClass('eyeColor')}
                   >
                     <option value="">Select eye color</option>
                     {eyeColorOptions.map(color => (
@@ -523,13 +596,13 @@ export default function ProfileEditPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Ethnicity
+                  Ethnicity<RequiredMark />
                 </label>
                 <select
                   name="ethnicity"
                   value={formData.ethnicity}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  className={fieldClass('ethnicity')}
                 >
                   <option value="">Select ethnicity</option>
                   {ethnicityOptions.map(eth => (
@@ -613,8 +686,11 @@ export default function ProfileEditPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-4">
-                  Types of Work Interested In
+                  Types of Work Interested In<RequiredMark />
                 </label>
+                {missing.includes('jobTypes') && (
+                  <p className="text-sm text-red-400 -mt-2 mb-3">Pick at least one type of work</p>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {jobTypeOptions.map(job => (
                     <div key={job.value} className="flex items-center">
@@ -635,13 +711,13 @@ export default function ProfileEditPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Availability
+                  Availability<RequiredMark />
                 </label>
                 <select
                   name="availability"
                   value={formData.availability}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  className={fieldClass('availability')}
                 >
                   <option value="">Select availability</option>
                   <option value="Weekdays">Weekdays</option>

@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
+import { EMAIL_PATTERN } from '@/lib/profile-required'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, username, password, birthDate } = body
+    const { username, password, birthDate } = body
+    const email = typeof body.email === 'string' ? body.email.trim() : ''
 
     // Validate required fields
     if (!email || !username || !password || !birthDate) {
       return NextResponse.json(
         { message: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    if (!EMAIL_PATTERN.test(email)) {
+      return NextResponse.json(
+        { message: 'Please enter a valid email address' },
         { status: 400 }
       )
     }
