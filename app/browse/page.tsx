@@ -64,6 +64,7 @@ export default function BrowsePage() {
     { value: 'girl-girl', label: 'Girl/Girl' },
     { value: 'threesome', label: 'Group Scenes' },
     { value: 'fetish', label: 'Fetish/BDSM' },
+    { value: 'escorting', label: 'Escorting' },
     { value: 'camming', label: 'Cam Shows' },
     { value: 'custom', label: 'Custom Content' },
     { value: 'dancing', label: 'Dancing' }

@@ -33,7 +33,7 @@ export default function SiteFooter() {
 
       <div className="border-t border-gray-900 py-6 text-center text-xs text-gray-500 space-y-2 px-4">
         <p>© {new Date().getFullYear()} Houston Talent Finder. All rights reserved. You must be 18+ to use this site.</p>
-        <p>Prostitution, escorting and any illegal services are strictly prohibited.</p>
+        <p>Escort listings are for companionship only. Prostitution and any illegal services are strictly prohibited.</p>
         <div className="space-x-4">
           <Link href="/terms" className="hover:text-white">Terms of Service</Link>
           <Link href="/privacy" className="hover:text-white">Privacy Policy</Link>
