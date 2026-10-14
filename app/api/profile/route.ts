@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { missingProfileFields } from '@/lib/profile-required'
 
 // GET - Fetch user's profile
 export async function GET(request: NextRequest) {
@@ -15,13 +16,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const profile = await prisma.profile.findUnique({
-      where: {
-        userId: session.user.id
-      }
-    })
+    const [profile, user] = await Promise.all([
+      prisma.profile.findUnique({
+        where: {
+          userId: session.user.id
+        }
+      }),
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { email: true }
+      })
+    ])
 
-    return NextResponse.json({ profile })
+    // Email lives on the account (it's what they sign in with); include it so the form can show it.
+    return NextResponse.json({ profile, email: user?.email ?? '' })
     
   } catch (error) {
     console.error('Error fetching profile:', error)
@@ -44,7 +52,34 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    
+
+    const missing = missingProfileFields(body)
+    if (missing.length > 0) {
+      return NextResponse.json(
+        {
+          message: `Please fill in: ${missing.map(f => f.label).join(', ')}`,
+          missing: missing.map(f => f.name)
+        },
+        { status: 400 }
+      )
+    }
+
+    // Email is the sign-in email, so changing it here changes how they log in.
+    const email = String(body.email).trim().toLowerCase()
+    const emailOwner = await prisma.user.findUnique({ where: { email } })
+    if (emailOwner && emailOwner.id !== session.user.id) {
+      return NextResponse.json(
+        { message: 'That email is already used by another account', missing: ['email'] },
+        { status: 400 }
+      )
+    }
+    if (!emailOwner) {
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: { email }
+      })
+    }
+
     // Remove empty strings and convert to appropriate types
     const profileData = {
       stageName: body.stageName || null,

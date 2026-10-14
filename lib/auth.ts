@@ -41,7 +41,8 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: {
-            email: credentials.email
+            // Accounts are stored lowercase; accept any capitalization or stray spaces at sign-in
+            email: credentials.email.trim().toLowerCase()
           }
         })
 
@@ -83,10 +84,9 @@ export const authOptions: NextAuthOptions = {
       return session
     },
     async jwt({ token, user }: any) {
+      const userId = user?.id ?? token.id
       const dbUser = await prisma.user.findUnique({
-        where: {
-          email: token.email!,
-        },
+        where: userId ? { id: userId as string } : { email: token.email! },
       })
 
       if (!dbUser) {
