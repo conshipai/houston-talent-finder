@@ -19,6 +19,8 @@ interface PendingProfile {
   id: string
   username: string
   email: string
+  stageName: string | null
+  phone: string | null
   createdAt: string
   mediaCount: number
 }
@@ -267,8 +269,13 @@ export default function AdminDashboard() {
                 <div key={profile.id} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-white">{profile.username}</h3>
-                      <p className="text-gray-400 text-sm">{profile.email}</p>
+                      <h3 className="text-lg font-semibold text-white">
+                        {profile.stageName || profile.username}
+                        {profile.stageName && <span className="ml-2 text-sm font-normal text-gray-400">@{profile.username}</span>}
+                      </h3>
+                      <p className="text-gray-400 text-sm">
+                        {profile.email}{profile.phone ? ` · ${profile.phone}` : ''}
+                      </p>
                       <p className="text-gray-500 text-xs mt-1">
                         Joined {new Date(profile.createdAt).toLocaleDateString()} • {profile.mediaCount} photos
                       </p>

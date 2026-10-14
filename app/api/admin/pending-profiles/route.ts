@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
         username: true,
         email: true,
         createdAt: true,
+        profile: {
+          select: { stageName: true, phone: true }
+        },
         _count: {
           select: {
             media: true
@@ -36,6 +39,8 @@ export async function GET(request: NextRequest) {
       id: p.id,
       username: p.username,
       email: p.email,
+      stageName: p.profile?.stageName ?? null,
+      phone: p.profile?.phone ?? null,
       createdAt: p.createdAt,
       mediaCount: p._count.media
     }))
