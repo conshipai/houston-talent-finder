@@ -1,3 +1,5 @@
+const colors = require('tailwindcss/colors')
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -8,6 +10,8 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Brand accent is hot pink; existing pages use `red-*` classes, so alias red to pink.
+        red: colors.pink,
         primary: {
           50: '#fef2f2',
           100: '#fee2e2',
