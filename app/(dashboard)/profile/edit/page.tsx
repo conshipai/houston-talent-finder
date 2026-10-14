@@ -98,7 +98,6 @@ export default function ProfileEditPage() {
     { value: 'fetish', label: 'Fetish/BDSM' },
     { value: 'milf', label: 'MILF/Mature' },
     { value: 'trans', label: 'Trans Content' },
-    { value: 'escorting', label: 'Escorting/Companionship' },
     { value: 'camming', label: 'Cam Shows/Live Streaming' },
     { value: 'custom', label: 'Custom Content' },
     { value: 'dancing', label: 'Exotic Dancing/Stripping' },
